@@ -1,0 +1,49 @@
+export interface Word {
+  text: string;
+  start: number; // in seconds
+  end: number;   // in seconds
+}
+
+export interface Flashcard {
+  id: string;
+  expression: string;
+  translation: string;
+  explanation: string;
+  audioUrl?: string;
+  audioBase64?: string;
+}
+
+export interface TranscriptSegment {
+  text: string;
+  translation?: string;
+  start: number;
+  end: number;
+  words: Word[];
+}
+
+export interface AudioTrack {
+  id: string;
+  title: string;
+  artist: string;
+  url: string;
+  coverUrl: string;
+  transcript: TranscriptSegment[];
+  flashcards?: Flashcard[];
+  knownWords?: string[]; // Array of lowercase text strings known by user
+  youtubeId?: string;
+  localVideoUrl?: string;
+  videoFileName?: string;
+  isVideo?: boolean;
+  audioFileName?: string; // Original audio file name used to create this lesson
+  language?: string; // Language code (e.g., 'en', 'es', 'fr')
+  lessonNumber?: number; // User-defined order number
+}
+
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}

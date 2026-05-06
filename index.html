@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <meta name="description" content="Aprenda inglês de forma divertida com legendas do seu conteúdo preferido. Estude com áudio sincronizado e transcrições interativas diretamente no LingoSync." />
+    <meta name="theme-color" content="#0d0d0d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LingoSync" />
+    <link rel="apple-touch-icon" href="/pwa-512x512.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/logo-ligosync.svg" />
+    <link rel="preload" as="image" href="/logo-ligosync.svg" type="image/svg+xml" />
+    <title>LingoSync</title>
+    <style>
+      /* Esconde a barra de rolagem em todos os navegadores e define fundo escuro imediato */
+      html {
+        scrollbar-width: none !important; /* Firefox */
+        overflow-y: scroll; /* Mantém a rolagem funcional */
+        overflow-x: hidden; /* Evita que o scroll horizontal ative barras de rolagem */
+        background-color: #0d0d0d;
+        color: #fff;
+      }
+      body {
+        -ms-overflow-style: none !important; /* IE e Edge */
+        background-color: #0d0d0d;
+        margin: 0;
+      }
+      /* Chrome, Safari e Opera */
+      ::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        background: transparent !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
