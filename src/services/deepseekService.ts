@@ -4,39 +4,62 @@ export async function callDeepSeekChat(
   messages: { role: string; content: string }[],
   apiKey: string,
   responseFormat?: { type: string },
-  maxTokens: number = 4096
+  maxTokens: number = 8192
 ) {
   if (!apiKey || apiKey.trim() === "") {
     throw new Error("DeepSeek API Key não configurada.");
   }
 
-  const response = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey.trim()}`,
-      "Content-Type": "application/json",
-      "Cache-Control": "no-cache",
-      "Pragma": "no-cache"
-    },
-    body: JSON.stringify({
-      model: "deepseek-chat",
-      messages,
-      temperature: 0.1,
-      max_tokens: 8192,
-      user: `lingosync_${Date.now()}` // Bypass server cache
-    }),
-  });
+  const MAX_RETRIES = 3;
+  let lastError: any = null;
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorData.error?.message || response.statusText;
-    throw new Error(`Erro na API do DeepSeek (${response.status}): ${message}`);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+
+      const response = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey.trim()}`,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache"
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages,
+          temperature: 0.1,
+          max_tokens: maxTokens,
+          user: `lingosync_${Date.now()}`
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Erro na API do DeepSeek (${response.status}): ${errorData.error?.message || response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || "";
+      
+      if (!content.trim() && attempt < MAX_RETRIES) {
+        console.warn(`[DeepSeek] Resposta vazia na tentativa ${attempt}. Tentando novamente...`);
+        continue;
+      }
+
+      return content;
+    } catch (error: any) {
+      lastError = error;
+      if (attempt < MAX_RETRIES) {
+        console.warn(`[DeepSeek] Tentativa ${attempt} falhou: ${error.message}. Tentando novamente...`);
+        await new Promise(r => setTimeout(r, 2000 * attempt)); // Exponential backoff
+        continue;
+      }
+    }
   }
 
-  const data = await response.json();
-  console.log("[DeepSeek API Response]", data);
-  
-  // For Reasoner, content might be in choices[0].message.content
-  // but some providers might use different paths.
-  return data.choices?.[0]?.message?.content || "";
+  throw lastError || new Error("Falha ao comunicar com DeepSeek após várias tentativas.");
 }

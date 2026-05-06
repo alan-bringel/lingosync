@@ -54,49 +54,49 @@ function DropdownSelector({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   useEffect(() => {
-     const clickOut = (e: MouseEvent) => { if(containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false); }
-     document.addEventListener('mousedown', clickOut);
-     return () => document.removeEventListener('mousedown', clickOut);
+    const clickOut = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener('mousedown', clickOut);
+    return () => document.removeEventListener('mousedown', clickOut);
   }, []);
 
   return (
     <div className="relative" ref={containerRef}>
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }} 
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         className="text-[10px] text-gray-400 hover:text-[#827367] hover:bg-[#827367]/10 font-bold px-2 py-1 h-auto flex items-center space-x-1 uppercase tracking-widest gap-1 transition-colors"
       >
         <Icon className="w-3.5 h-3.5" />
         <span>{onFormatValue(value)}</span>
       </Button>
       <AnimatePresence>
-         {open && (
-           <motion.div 
-            initial={{ opacity: 0, y: direction === "up" ? 10 : -10 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            exit={{ opacity: 0, y: direction === "up" ? 10 : -10 }} 
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: direction === "up" ? 10 : -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: direction === "up" ? 10 : -10 }}
             className={cn(
               "absolute left-1/2 -translate-x-1/2 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-1 w-24 z-[100] overflow-hidden",
               direction === "up" ? "bottom-full mb-2" : "top-full mt-2"
             )}
-           >
-             {options.map(opt => (
-                <button 
-                  key={opt} 
-                  onClick={(e) => { e.stopPropagation(); onChange(opt); setOpen(false); }} 
-                  className={cn(
-                    "w-full flex items-center justify-center py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors cursor-pointer", 
-                    value === opt ? "text-[#827367] bg-[#827367]/5" : "text-gray-400"
-                  )}
-                >
-                   {onFormatValue(opt)}
-                </button>
-             ))}
-           </motion.div>
-         )}
+          >
+            {options.map(opt => (
+              <button
+                key={opt}
+                onClick={(e) => { e.stopPropagation(); onChange(opt); setOpen(false); }}
+                className={cn(
+                  "w-full flex items-center justify-center py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors cursor-pointer",
+                  value === opt ? "text-[#827367] bg-[#827367]/5" : "text-gray-400"
+                )}
+              >
+                {onFormatValue(opt)}
+              </button>
+            ))}
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   )
@@ -128,7 +128,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
-    
+
     // If it wasn't a long press, it's a normal toggle
     if (!isLongPressRef.current) {
       if (hasVideo) {
@@ -159,7 +159,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       }
     }
   }, [isPausedExternally]);
-  
+
   // Playback settings
   const [globalSpeed, setGlobalSpeed] = useState<number>(1);
   const [globalRepeat, setGlobalRepeat] = useState<number>(1);
@@ -252,7 +252,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
         try {
           ytPlayerRef.current.destroy();
-        } catch (e) {}
+        } catch (e) { }
         ytPlayerRef.current = null;
       }
       setIsYtReady(false);
@@ -262,7 +262,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   // Sync playback time with state using requestAnimationFrame for smooth UI
   useEffect(() => {
     let animationFrameId: number;
-    
+
     const updateTime = () => {
       if (!isDraggingRef.current) {
         if (track.youtubeId && isYtReady && ytPlayerRef.current?.getCurrentTime) {
@@ -282,7 +282,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     if (isPlaying) {
       animationFrameId = requestAnimationFrame(updateTime);
     }
-    
+
     return () => cancelAnimationFrame(animationFrameId);
   }, [isPlaying, track.youtubeId, isYtReady]);
 
@@ -293,13 +293,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       if (diff > 0.1) {
         videoRef.current.currentTime = audioRef.current.currentTime;
       }
-      
+
       if (isPlaying && videoRef.current.paused) {
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
       } else if (!isPlaying && !videoRef.current.paused) {
         videoRef.current.pause();
       }
-      
+
       videoRef.current.playbackRate = globalSpeed;
     }
   }, [currentTime, isPlaying, globalSpeed, track.youtubeId]);
@@ -319,7 +319,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   }, [isEditModeGlobal]);
 
   const [stopTime, setStopTime] = useState<number | null>(null);
-  
+
   // Active repeat state tracking
   const repeatsLeftRef = useRef<number>(0);
   const globalRepeatsLeftRef = useRef<number>(0);
@@ -342,12 +342,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
   const handleSegmentClick = (e: React.MouseEvent, idx: number, wordIndex?: number, word?: string) => {
     e.stopPropagation();
-    
+
     if (clickTimeoutRef.current) {
       // It's a double click - Open Flashcard ONLY if a word was clicked
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
-      
+
       // Pause playback immediately so the user can study in silence, 
       // but DO NOT change the currentTime (keep the highlight where it is).
       setIsPlaying(false);
@@ -356,18 +356,18 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       } else if (audioRef.current) {
         audioRef.current.pause();
       }
-      
+
       if (word && track.flashcards && onOpenFlashcardAtIndex) {
         const lowerSearch = word.toLowerCase().trim();
-        let cardIdx = track.flashcards.findIndex(fc => 
+        let cardIdx = track.flashcards.findIndex(fc =>
           fc.expression.toLowerCase().trim() === lowerSearch
         );
-        
+
         if (cardIdx === -1) {
           const regex = new RegExp(`\\b${lowerSearch}\\b`, 'i');
           cardIdx = track.flashcards.findIndex(fc => regex.test(fc.expression));
         }
-        
+
         onOpenFlashcardAtIndex(cardIdx !== -1 ? cardIdx : 0);
       }
     } else {
@@ -385,11 +385,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     // Basic word split that preserves punctuation and contractions
     const pattern = /([a-zA-Z']+)/g;
     const parts = text.split(pattern);
-    
+
     // Active uses standard brown, Inactive uses a more discreet faded brown
     const knownColorClass = isActive ? "text-[#827367]" : "text-[#827367]/50";
     const baseColorClass = isActive ? "text-gray-100" : "text-gray-500";
-    
+
     return parts.map((part, i) => {
       const isWord = pattern.test(part);
       if (!isWord) {
@@ -402,7 +402,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
           }
         }
         return (
-          <span 
+          <span
             key={i}
             className={cn(
               "transition-colors duration-120 ease-in-out",
@@ -413,13 +413,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
           </span>
         );
       }
-      
+
       const lowerWord = part.toLowerCase();
       const needsHighlight = !knownWords.has(lowerWord);
-      
+
       return (
-        <span 
-          key={i} 
+        <span
+          key={i}
           onClick={(e) => handleSegmentClick(e, segmentIdx, i, part)}
           className={cn(
             "transition-colors duration-120 ease-in-out cursor-pointer",
@@ -492,7 +492,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       start: segment.start,
       end: segment.end
     });
-    
+
     // Zoom in the slider bounds for precise editing
     const windowSize = segment.end - segment.start;
     const padding = Math.max(5, windowSize * 0.5);
@@ -507,10 +507,10 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       e.preventDefault();
       const selectionStart = e.currentTarget.selectionStart;
       const text = editData.text;
-      
+
       const beforeSplit = text.slice(0, selectionStart).trim();
       const afterSplit = text.slice(selectionStart).trim();
-      
+
       if (afterSplit) {
         const originalSegment = track.transcript[idx];
         const totalDuration = editData.end - editData.start;
@@ -521,11 +521,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         // Visual feedback immediate: naive proportional split but at word boundaries
         const originalTranslation = originalSegment.translation || "";
         let naiveSplitIdx = Math.floor(originalTranslation.length * ratio);
-        
+
         // Improve naive split: find nearest space to avoid cutting words
         const spaceBefore = originalTranslation.lastIndexOf(' ', naiveSplitIdx);
         const spaceAfter = originalTranslation.indexOf(' ', naiveSplitIdx);
-        
+
         if (spaceBefore !== -1 && (naiveSplitIdx - spaceBefore < spaceAfter - naiveSplitIdx || spaceAfter === -1)) {
           naiveSplitIdx = spaceBefore;
         } else if (spaceAfter !== -1) {
@@ -535,26 +535,26 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         const naiveA = originalTranslation.slice(0, naiveSplitIdx).trim();
         const naiveB = originalTranslation.slice(naiveSplitIdx).trim();
 
-        const segmentA: TranscriptSegment = { 
-          ...originalSegment, 
-          text: beforeSplit, 
-          translation: naiveA, 
+        const segmentA: TranscriptSegment = {
+          ...originalSegment,
+          text: beforeSplit,
+          translation: naiveA,
           start: editData.start,
-          end: splitTime 
+          end: splitTime
         };
-        const segmentB: TranscriptSegment = { 
-          ...originalSegment, 
-          text: afterSplit, 
-          translation: naiveB, 
+        const segmentB: TranscriptSegment = {
+          ...originalSegment,
+          text: afterSplit,
+          translation: naiveB,
           start: splitTime,
           end: editData.end
         };
 
         const newTranscript = [...track.transcript];
         newTranscript.splice(idx, 1, segmentA, segmentB);
-        
+
         onUpdateTrack?.({ transcript: newTranscript });
-        
+
         // Immediate visual feedback: move focus to the new segment
         setEditingIndex(idx + 1);
         setEditData({
@@ -578,7 +578,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
             // Fetch latest transcript from ref to ensure we don't overwrite other changes
             const updatedTranscript = [...transcriptRef.current];
-            
+
             // Re-find the segments precisely because indices might have changed 
             // if the user did multiple splits rapidly.
             // We'll search for the segments by their current content.
@@ -589,7 +589,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
               updatedTranscript[targetIdxA] = { ...updatedTranscript[targetIdxA], translation: translationA };
               updatedTranscript[targetIdxB] = { ...updatedTranscript[targetIdxB], translation: translationB };
               onUpdateTrack?.({ transcript: updatedTranscript });
-              
+
               // If we are still editing segment B, update its local editData translation
               // We check if the current editingIndex still corresponds to segment B
               if (editingIndex === targetIdxB) {
@@ -613,7 +613,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
   const handleSaveEdit = async (idx: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     // Se o texto em inglês for apagado, excluímos o segmento automaticamente
     if (editData.text.trim() === "") {
       const newTranscript = [...track.transcript];
@@ -635,7 +635,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       // ... (Rest of splitting logic stays same)
       const totalDuration = editData.end - editData.start;
       const totalChars = englishLines.reduce((acc, line) => acc + line.length, 0);
-      
+
       const newSegments: TranscriptSegment[] = [];
       let currentStartTime = editData.start;
 
@@ -722,7 +722,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         } else {
           // If starting fresh or from end reset repeats
           if (ytPlayerRef.current.getCurrentTime && ytPlayerRef.current.getCurrentTime() < 0.1) {
-             globalRepeatsLeftRef.current = globalRepeat === Infinity ? Infinity : Math.max(0, globalRepeat - 1);
+            globalRepeatsLeftRef.current = globalRepeat === Infinity ? Infinity : Math.max(0, globalRepeat - 1);
           }
           setStopTime(null);
           setActiveSegmentIndex(null);
@@ -738,7 +738,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         if (audioRef.current.currentTime < 0.1 || audioRef.current.ended) {
           globalRepeatsLeftRef.current = globalRepeat === Infinity ? Infinity : Math.max(0, globalRepeat - 1);
         }
-        
+
         // If we were in "segment mode", clearing stopTime allows normal continuation
         setStopTime(null);
         setActiveSegmentIndex(null);
@@ -837,7 +837,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       setStopTime(null);
       setActiveSegmentIndex(null);
     }
-    
+
     // Delay turning off the dragging flag slightly so the player
     // time has a chance to catch up and we don't snap the slider backward.
     setTimeout(() => {
@@ -849,11 +849,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     const repeats = globalRepeat;
     repeatsLeftRef.current = repeats === Infinity ? Infinity : Math.max(0, repeats - 1);
     setActiveSegmentIndex(index);
-    
+
     // O tempo de parada agora segue exatamente o 'end' do segmento, 
     // que já possui 1 segundo de margem adicionado durante a geração.
     setStopTime(end);
-    
+
     const speed = globalSpeed;
 
     // Add a tiny preroll to avoid clipping the first syllable on fresh seeks.
@@ -871,7 +871,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       audio.currentTime = exactStart;
       audio.playbackRate = speed;
       const startPlayback = () => {
-        audio.play().catch(() => {});
+        audio.play().catch(() => { });
       };
       if (audio.readyState < 2) {
         const onCanPlay = () => {
@@ -933,7 +933,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0d0d0d] rounded-3xl border-[1.5px] border-white/10 overflow-hidden shadow-2xl">
+    <div className="flex flex-col h-full bg-transparent sm:bg-[#0d0d0d] rounded-3xl border-[1.5px] border-white/10 overflow-hidden shadow-2xl">
       {/* Track Info */}
       <div className="p-4 sm:p-6 flex flex-col bg-white/[0.04] gap-4">
         <div className="flex items-center space-x-6 w-full">
@@ -943,33 +943,33 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
             key={track.id}
             className={cn(
               "w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shrink-0 aspect-square ml-1 sm:ml-2 overflow-hidden transition-all duration-300 rounded-full",
-              isEditModeGlobal 
-                ? "bg-white/[0.03] border border-white/10 focus-within:border-white/20" 
+              isEditModeGlobal
+                ? "bg-white/[0.03] border border-white/10 focus-within:border-white/20"
                 : "bg-[#443a32]/20 border border-white/5"
             )}
           >
             {isEditModeGlobal ? (
-               <input
-                 type="text"
-                 inputMode="numeric"
-                 pattern="[0-9]*"
-                 value={track.lessonNumber === undefined ? "" : track.lessonNumber}
-                 placeholder={trackNumber.toString()}
-                 onChange={(e) => {
-                   const val = e.target.value;
-                   if (val === "") {
-                     onUpdateTrack?.({ lessonNumber: undefined });
-                   } else {
-                     const parsed = parseInt(val, 10);
-                     if (!isNaN(parsed)) {
-                       onUpdateTrack?.({ lessonNumber: parsed });
-                     }
-                   }
-                 }}
-                 className="bg-transparent border-none text-center outline-none w-full h-full text-base sm:text-lg font-bold text-[#827367] font-mono cursor-text placeholder:text-[#827367]/30"
-               />
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={track.lessonNumber === undefined ? "" : track.lessonNumber}
+                placeholder={trackNumber.toString()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    onUpdateTrack?.({ lessonNumber: undefined });
+                  } else {
+                    const parsed = parseInt(val, 10);
+                    if (!isNaN(parsed)) {
+                      onUpdateTrack?.({ lessonNumber: parsed });
+                    }
+                  }
+                }}
+                className="bg-transparent border-none text-center outline-none w-full h-full text-base sm:text-lg font-bold text-[#827367] font-mono cursor-text placeholder:text-[#827367]/30"
+              />
             ) : (
-               <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? trackNumber}</span>
+              <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? trackNumber}</span>
             )}
           </motion.div>
           <div className="flex-1 min-w-0 space-y-3">
@@ -1032,9 +1032,9 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
       <div className="flex flex-col relative min-h-0 flex-1">
         {hasVideo && (
-          <motion.div 
+          <motion.div
             initial={false}
-            animate={{ 
+            animate={{
               height: showVideo ? "auto" : 0,
               opacity: showVideo ? 1 : 0
             }}
@@ -1046,9 +1046,9 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 {track.youtubeId ? (
                   <div id="yt-player-element" className="w-full h-full" />
                 ) : track.localVideoUrl ? (
-                  <video 
+                  <video
                     ref={videoRef}
-                    src={track.localVideoUrl} 
+                    src={track.localVideoUrl}
                     className="w-full h-full object-contain"
                     muted
                     playsInline
@@ -1062,9 +1062,9 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                         Esperado: {track.videoFileName}
                       </p>
                     )}
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={onVideoSyncClick}
                       className="border-white/10 text-xs uppercase tracking-widest font-bold"
                     >
@@ -1081,48 +1081,48 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
             </div>
           </motion.div>
         )}
-        
+
         {/* Transcript Area */}
         <ScrollArea className="flex-1 min-h-0 px-4 sm:px-8 py-4">
-        <div className="space-y-2 pb-8">
-          {track.transcript.map((segment, sIdx) => (
-            <motion.div
-              key={sIdx}
-              id={`segment-${sIdx}`}
-              onClick={(e) => editingIndex === null && handleSegmentClick(e, sIdx)}
-              className={cn(
-                "group transition-all duration-300 rounded-xl p-3 sm:p-4",
-                editingIndex === sIdx ? "bg-white/[0.05] border-[1.5px] border-white/20" : "cursor-pointer"
-              )}
-            >
-              <div className="space-y-2">
-                {editingIndex === sIdx ? (
-                  <div className="space-y-4" onClick={e => e.stopPropagation()}>
-                    <div className="space-y-3 border-b-[1.5px] border-white/10 pb-4">
-                      <div className="flex justify-between items-center px-1">
-                        <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500 flex items-center">
-                          <Clock className="w-4 h-4 mr-2" /> Intervalo de Tempo
-                        </label>
-                        <span className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">
-                          {formatTimeFull(editData.start)} — {formatTimeFull(editData.end)}
-                        </span>
+          <div className="space-y-2 pb-8">
+            {track.transcript.map((segment, sIdx) => (
+              <motion.div
+                key={sIdx}
+                id={`segment-${sIdx}`}
+                onClick={(e) => editingIndex === null && handleSegmentClick(e, sIdx)}
+                className={cn(
+                  "group transition-all duration-300 rounded-xl p-3 sm:p-4",
+                  editingIndex === sIdx ? "bg-white/[0.05] border-[1.5px] border-white/20" : "cursor-pointer"
+                )}
+              >
+                <div className="space-y-2">
+                  {editingIndex === sIdx ? (
+                    <div className="space-y-4" onClick={e => e.stopPropagation()}>
+                      <div className="space-y-3 border-b-[1.5px] border-white/10 pb-4">
+                        <div className="flex justify-between items-center px-1">
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500 flex items-center">
+                            <Clock className="w-4 h-4 mr-2" /> Intervalo de Tempo
+                          </label>
+                          <span className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">
+                            {formatTimeFull(editData.start)} — {formatTimeFull(editData.end)}
+                          </span>
+                        </div>
+                        <Slider
+                          value={[editData.start, editData.end]}
+                          min={editSliderBounds.min}
+                          max={Math.min(duration || editSliderBounds.max, editSliderBounds.max)}
+                          step={0.1}
+                          onValueChange={(vals) => setEditData(prev => ({ ...prev, start: vals[0], end: vals[1] }))}
+                          className="py-4"
+                          indicatorClassName="bg-[#827367]/80"
+                          thumbClassName="bg-white"
+                        />
                       </div>
-                      <Slider 
-                        value={[editData.start, editData.end]}
-                        min={editSliderBounds.min}
-                        max={Math.min(duration || editSliderBounds.max, editSliderBounds.max)}
-                        step={0.1}
-                        onValueChange={(vals) => setEditData(prev => ({ ...prev, start: vals[0], end: vals[1] }))}
-                        className="py-4"
-                        indicatorClassName="bg-[#827367]/80"
-                        thumbClassName="bg-white"
-                      />
-                    </div>
-                    
+
                       <div className="flex space-x-2">
-                        <Button 
-                          variant="secondary" 
-                          size="default" 
+                        <Button
+                          variant="secondary"
+                          size="default"
                           onClick={handlePreviewEdit}
                           className="flex-1 bg-white/5 hover:bg-white/10 text-gray-300 text-[11px] font-bold uppercase tracking-widest h-12 border border-white/5"
                         >
@@ -1130,112 +1130,112 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                         </Button>
                       </div>
 
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Texto em Inglês</label>
-                      <Textarea 
-                        value={editData.text}
-                        onChange={e => setEditData(prev => ({ ...prev, text: e.target.value }))}
-                        onKeyDown={e => handleKeyDown(e, sIdx)}
-                        className="bg-white/[0.02] border-[1.5px] border-white/10 text-gray-300 text-lg min-h-[100px]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Tradução em Português</label>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          disabled={isSyncingTranslation !== null}
-                          onClick={(e) => handleSmartSync(sIdx, e)}
-                          className="flex items-center justify-center h-8 px-3 text-[10px] text-[#827367] hover:text-[#9a8c80] hover:bg-[#827367]/10 font-bold uppercase tracking-tighter whitespace-nowrap min-w-[120px]"
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Texto em Inglês</label>
+                        <Textarea
+                          value={editData.text}
+                          onChange={e => setEditData(prev => ({ ...prev, text: e.target.value }))}
+                          onKeyDown={e => handleKeyDown(e, sIdx)}
+                          className="bg-white/[0.02] border-[1.5px] border-white/10 text-gray-300 text-lg min-h-[100px]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Tradução em Português</label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isSyncingTranslation !== null}
+                            onClick={(e) => handleSmartSync(sIdx, e)}
+                            className="flex items-center justify-center h-8 px-3 text-[10px] text-[#827367] hover:text-[#9a8c80] hover:bg-[#827367]/10 font-bold uppercase tracking-tighter whitespace-nowrap min-w-[120px]"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              {isSyncingTranslation === sIdx ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                              )}
+                              <span>{isSyncingTranslation === sIdx ? "Ajustando..." : "Ajustar Tradução"}</span>
+                            </div>
+                          </Button>
+                        </div>
+                        <Textarea
+                          value={editData.translation}
+                          onChange={e => setEditData(prev => ({ ...prev, translation: e.target.value }))}
+                          className="bg-white/[0.02] border-[1.5px] border-white/10 text-gray-400 text-base"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-3 pt-4 w-full">
+                        <Button
+                          size="default"
+                          onClick={(e) => handleSaveEdit(sIdx, e)}
+                          disabled={isSyncingTranslation === sIdx}
+                          className="flex-1 bg-[#827367]/90 hover:bg-[#827367] text-gray-200 text-[11px] font-bold uppercase tracking-widest h-12 border-[1.5px] border-white/10 disabled:opacity-50"
                         >
-                          <div className="flex items-center gap-1.5">
-                            {isSyncingTranslation === sIdx ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                            ) : (
-                              <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                            )}
-                            <span>{isSyncingTranslation === sIdx ? "Ajustando..." : "Ajustar Tradução"}</span>
-                          </div>
+                          <Check className="w-4 h-4 mr-2" /> Salvar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="default"
+                          onClick={handleCancelEdit}
+                          disabled={isSyncingTranslation === sIdx}
+                          className="flex-1 text-gray-500 hover:text-gray-300 text-[11px] font-bold uppercase tracking-widest h-12 border-[1.5px] border-white/10 disabled:opacity-50"
+                        >
+                          <X className="w-4 h-4 mr-2" /> Cancelar
                         </Button>
                       </div>
-                      <Textarea 
-                        value={editData.translation}
-                        onChange={e => setEditData(prev => ({ ...prev, translation: e.target.value }))}
-                        className="bg-white/[0.02] border-[1.5px] border-white/10 text-gray-400 text-base"
-                      />
                     </div>
-                    <div className="flex items-center space-x-3 pt-4 w-full">
-                      <Button 
-                        size="default" 
-                        onClick={(e) => handleSaveEdit(sIdx, e)} 
-                        disabled={isSyncingTranslation === sIdx}
-                        className="flex-1 bg-[#827367]/90 hover:bg-[#827367] text-gray-200 text-[11px] font-bold uppercase tracking-widest h-12 border-[1.5px] border-white/10 disabled:opacity-50"
-                      >
-                        <Check className="w-4 h-4 mr-2" /> Salvar
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="default" 
-                        onClick={handleCancelEdit} 
-                        disabled={isSyncingTranslation === sIdx}
-                        className="flex-1 text-gray-500 hover:text-gray-300 text-[11px] font-bold uppercase tracking-widest h-12 border-[1.5px] border-white/10 disabled:opacity-50"
-                      >
-                        <X className="w-4 h-4 mr-2" /> Cancelar
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex justify-between items-start group/title">
-                      <div className="text-xl sm:text-lg leading-relaxed flex-1">
-                        {renderSegmentText(segment.text, isSegmentActive(segment), sIdx)}
-                      </div>
-                      {isEditModeGlobal && (
-                        <button 
-                          onClick={(e) => handleStartEdit(sIdx, e)}
-                          className="p-3 text-gray-700 hover:text-[#827367] transition-all ml-2"
-                          title="Edit segment"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                    
-                    <div className="flex flex-col space-y-2">
-                      <div className="flex items-center justify-between">
-                        <button
-                          onClick={(e) => toggleTranslation(sIdx, e)}
-                          className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
-                          title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
-                        >
-                          {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-
-
-                      </div>
-
-                      <AnimatePresence>
-                        {showTranslations[sIdx] && (
-                          <motion.p
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden"
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-start group/title">
+                        <div className="text-xl sm:text-lg leading-relaxed flex-1">
+                          {renderSegmentText(segment.text, isSegmentActive(segment), sIdx)}
+                        </div>
+                        {isEditModeGlobal && (
+                          <button
+                            onClick={(e) => handleStartEdit(sIdx, e)}
+                            className="p-3 text-gray-700 hover:text-[#827367] transition-all ml-2"
+                            title="Edit segment"
                           >
-                            {segment.translation || "(Tradução indisponível para este segmento.)"}
-                          </motion.p>
+                            <Edit2 className="w-4 h-4" />
+                          </button>
                         )}
-                      </AnimatePresence>
-                    </div>
-                  </>
-                )}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </ScrollArea>
-    </div>
+                      </div>
+
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex items-center justify-between">
+                          <button
+                            onClick={(e) => toggleTranslation(sIdx, e)}
+                            className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
+                            title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
+                          >
+                            {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+
+
+                        </div>
+
+                        <AnimatePresence>
+                          {showTranslations[sIdx] && (
+                            <motion.p
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden"
+                            >
+                              {segment.translation || "(Tradução indisponível para este segmento.)"}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
 
       {/* Controls Container */}
       <div className="bg-white/[0.04] relative">
@@ -1263,48 +1263,56 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
           <div className="flex items-center justify-center">
             {/* Center: Playback Buttons + Speed + Repeat */}
-            <div className="flex items-center space-x-6 sm:space-x-12">
-              <DropdownSelector
-                value={globalSpeed}
-                options={[0.5, 0.75, 1, 1.25, 1.5, 2]}
-                icon={Gauge}
-                onChange={setGlobalSpeed}
-                onFormatValue={(val) => val === 1 ? "1x" : `${val}x`}
-              />
-              
-              <div className="flex items-center space-x-4 sm:space-x-8">
+            <div className="flex items-center space-x-4 sm:space-x-12">
+              <div className="scale-110 sm:scale-100">
+                <DropdownSelector
+                  value={globalSpeed}
+                  options={[0.5, 0.75, 1, 1.25, 1.5, 2]}
+                  icon={Gauge}
+                  onChange={setGlobalSpeed}
+                  onFormatValue={(val) => val === 1 ? "1x" : `${val}x`}
+                />
+              </div>
+
+              <div className="flex items-center space-x-6 sm:space-x-8">
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={onPrev}
-                  className="text-gray-500 hover:text-gray-200 hover:bg-white/5"
+                  className="text-gray-500 hover:text-gray-200 hover:bg-white/5 w-12 h-12 sm:w-10 sm:h-10"
                 >
-                  <SkipBack className="w-5 h-5" />
+                  <SkipBack className="w-7 h-7 sm:w-5 sm:h-5" />
                 </Button>
                 <Button
                   onClick={togglePlay}
                   size="icon"
-                  className="w-14 h-14 rounded-full bg-gray-200 text-black hover:bg-white transition-all transform active:scale-95 shadow-xl shadow-black/40 flex items-center justify-center group"
+                  className="w-16 h-16 sm:w-14 sm:h-14 rounded-full bg-gray-200 text-black hover:bg-white transition-all transform active:scale-95 shadow-2xl shadow-black/60 flex items-center justify-center group"
                 >
-                  {isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current ml-1" />}
+                  {isPlaying ? (
+                    <Pause className="w-8 h-8 sm:w-6 sm:h-6 fill-current" />
+                  ) : (
+                    <Play className="w-8 h-8 sm:w-6 sm:h-6 fill-current ml-1" />
+                  )}
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={onNext}
-                  className="text-gray-500 hover:text-gray-200 hover:bg-white/5"
+                  className="text-gray-500 hover:text-gray-200 hover:bg-white/5 w-12 h-12 sm:w-10 sm:h-10"
                 >
-                  <SkipForward className="w-5 h-5" />
+                  <SkipForward className="w-7 h-7 sm:w-5 sm:h-5" />
                 </Button>
               </div>
 
-              <DropdownSelector
-                value={globalRepeat}
-                options={[1, 2, 3, 5, Infinity]}
-                icon={Repeat}
-                onChange={setGlobalRepeat}
-                onFormatValue={(val) => val === Infinity ? <InfinityIcon className="w-3.5 h-3.5" /> : `${val}x`}
-              />
+              <div className="scale-110 sm:scale-100">
+                <DropdownSelector
+                  value={globalRepeat}
+                  options={[1, 2, 3, 5, Infinity]}
+                  icon={Repeat}
+                  onChange={setGlobalRepeat}
+                  onFormatValue={(val) => val === Infinity ? <InfinityIcon className="w-3.5 h-3.5" /> : `${val}x`}
+                />
+              </div>
             </div>
           </div>
         </div>

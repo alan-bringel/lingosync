@@ -107,15 +107,16 @@ function remedySegments(segments: TranscriptSegment[]): TranscriptSegment[] {
   }
 
   // 3. Final refinement: Subtract 0.5s from the end of each segment to prevent "word bleeding"
-  result.forEach(segment => {
-    if (segment.end - segment.start > 0.6) {
-      segment.end = segment.end - 0.5;
-    } else {
-      segment.end = Math.max(segment.start + 0.1, segment.end - 0.1);
-    }
+  const buffer = 0.5;
+  const remedied = result.map((segment) => {
+    return {
+      ...segment,
+      start: Math.max(0, segment.start - buffer),
+      end: Math.max(segment.start, segment.end - buffer)
+    };
   });
 
-  return result;
+  return remedied;
 }
 
 function normalizeWordsForComparison(text: string): string[] {
@@ -198,15 +199,18 @@ You must be as intelligent and context-aware as Gemini 1.5 Flash.
 
 ### CRITICAL RULES (TOTAL FIDELITY & SEMANTIC ALIGNMENT):
 1. 100% WORD COVERAGE: Use EVERY word from the input exactly once.
-2. NO CROSSING RULE: Never put a translated word in a segment if its English source is in a different segment.
-3. NATURAL PORTUGUESE: Prioritize idiomatic, native-sounding Portuguese. Avoid literal translations of structures like "with [subject] being" (use "sendo" or "e" instead) or "certain ones" (use "alguns" instead).
-4. ADJUST ENGLISH TO FIT PORTUGUESE: Move English breaks to keep semantic units together.
+2. NO CROSSING RULE: A translated word MUST stay with its English source. If Portuguese requires an inverted word order (e.g., "simple way" -> "forma simples"), DO NOT split them. MOVE the English word to the next segment if necessary.
+3. NATURAL PORTUGUESE: Prioritize idiomatic, native-sounding Portuguese.
+4. ADJUST ENGLISH BREAKS: You have full authority to move English words between segments to ensure the translation is not split.
 5. SIZE LIMITS: 4 to 15 words per segment.
 
-### EXAMPLE OF NATURAL TRANSLATION:
-- English: "Genres are a unique style of communicating, with certain ones being more effective"
-- WRONG (Literal): "...com certos sendo mais eficazes"
-- RIGHT (Natural): "...sendo que alguns são mais eficazes"
+### EXAMPLE OF PREVENTING LEAKS:
+- Bad Break: 
+  - Seg 1: "truth spoken in a simple" -> "verdade dita de forma" (WRONG: "simples" is missing)
+  - Seg 2: "way can reach every heart." -> "simples pode alcançar cada coração." (WRONG: "simples" belongs to "simple" in the previous block)
+- Correct Break:
+  - Seg 1: "truth spoken in a" -> "verdade dita de uma forma"
+  - Seg 2: "simple way can reach every heart." -> "simples que pode alcançar cada coração."
 
 ### EXAMPLE OF PERFECT ALIGNMENT:
 - Input: "...and see how the Bible is divinely inspired literature that leads us to Jesus."

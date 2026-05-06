@@ -41,9 +41,9 @@ const SUPPORTED_LANGUAGES: Language[] = [
 const MAX_WORDS_PER_SEGMENT = 15;
 
 const LingoSyncLogo = ({ className = "w-8 h-8" }: { className?: string }) => (
-  <img 
-    src="/logo-ligosync.svg" 
-    alt="LingoSync Logo" 
+  <img
+    src="/logo-ligosync.svg"
+    alt="LingoSync Logo"
     className={className}
     style={{ objectFit: 'contain' }}
   />
@@ -227,12 +227,12 @@ export default function App() {
       // Stop all HTML audio and video elements
       const mediaElements = document.querySelectorAll('audio, video');
       mediaElements.forEach((el: any) => el.pause());
-      
+
       // Stop any active browser narration (TTS)
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
-      
+
       // Close flashcards if open
       setShowFlashcards(false);
     }
@@ -296,119 +296,119 @@ export default function App() {
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   const countDirEntries = async (dirHandle: any): Promise<number> => {
-      let count = 0;
-      try {
-        for await (const entry of dirHandle.values()) {
-          if (entry.kind === 'file') {
-            count += 1;
-            if (count % 50 === 0) {
-              await new Promise(resolve => setTimeout(resolve, 0));
-            }
-          } else if (entry.kind === 'directory') {
-            count += await countDirEntries(entry);
-          }
-        }
-      } catch (err) {
-        console.warn("Error counting directory entries:", err);
-      }
-      return Math.max(count, 1);
-    };
-
-    const findFileInDirectory = async (
-      dirHandle: any,
-      targetName: string,
-      totalEntries: number,
-      processed: { value: number }
-    ): Promise<File | null> => {
+    let count = 0;
+    try {
       for await (const entry of dirHandle.values()) {
-        processed.value += 1;
-        if (processed.value % 10 === 0) {
-          setSyncProgress(Math.round((processed.value / totalEntries) * 100));
-          await new Promise(resolve => setTimeout(resolve, 0));
-        }
-
-        if (entry.kind === 'file' && entry.name.toLowerCase() === targetName) {
-          setSyncProgress(100);
-          return await entry.getFile();
-        }
-        if (entry.kind === 'directory') {
-          const found = await findFileInDirectory(entry, targetName, totalEntries, processed);
-          if (found) return found;
+        if (entry.kind === 'file') {
+          count += 1;
+          if (count % 50 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        } else if (entry.kind === 'directory') {
+          count += await countDirEntries(entry);
         }
       }
-      return null;
-    };
+    } catch (err) {
+      console.warn("Error counting directory entries:", err);
+    }
+    return Math.max(count, 1);
+  };
 
-    const handleSyncAudioFolder = async (e?: React.ChangeEvent<HTMLInputElement>) => {
-      if (!currentTrack || !currentTrack.audioFileName) return;
+  const findFileInDirectory = async (
+    dirHandle: any,
+    targetName: string,
+    totalEntries: number,
+    processed: { value: number }
+  ): Promise<File | null> => {
+    for await (const entry of dirHandle.values()) {
+      processed.value += 1;
+      if (processed.value % 10 === 0) {
+        setSyncProgress(Math.round((processed.value / totalEntries) * 100));
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
 
-      setIsSyncingAudio(true);
+      if (entry.kind === 'file' && entry.name.toLowerCase() === targetName) {
+        setSyncProgress(100);
+        return await entry.getFile();
+      }
+      if (entry.kind === 'directory') {
+        const found = await findFileInDirectory(entry, targetName, totalEntries, processed);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const handleSyncAudioFolder = async (e?: React.ChangeEvent<HTMLInputElement>) => {
+    if (!currentTrack || !currentTrack.audioFileName) return;
+
+    setIsSyncingAudio(true);
+    setSyncProgress(0);
+    let foundFile: File | null = null;
+    const targetName = currentTrack.audioFileName.toLowerCase();
+
+    try {
+      // Delay para permitir UI renderizar o estado de sincronização
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Method 1: File System Access API (Chrome/Edge)
+      if (!e && 'showDirectoryPicker' in window) {
+        try {
+          const dirHandle = await (window as any).showDirectoryPicker();
+          setSyncProgress(1);
+          await saveLastDirectoryHandle(dirHandle);
+
+          // Iniciar contagem sem esperar terminar completamente
+          const totalEntries = await countDirEntries(dirHandle) || 1;
+          setSyncProgress(Math.min(5, Math.round(100 / totalEntries)));
+
+          const processed = { value: 0 };
+          foundFile = await findFileInDirectory(dirHandle, targetName, totalEntries, processed);
+        } catch (pickerError) {
+          console.warn("Directory picker failed, falling back to file input:", pickerError);
+          if (folderInputRef.current) {
+            folderInputRef.current.click();
+          }
+          return;
+        }
+      }
+      // Method 2: Fallback Input (Safari/iOS/Firefox or manual select)
+      else if (e && e.target.files) {
+        const files = e.target.files;
+        const totalFiles = Math.max(files.length, 1);
+
+        for (let i = 0; i < totalFiles; i++) {
+          const f = files[i];
+          setSyncProgress(Math.round(((i + 1) / totalFiles) * 100));
+          if (f.name.toLowerCase() === targetName) {
+            foundFile = f;
+            break;
+          }
+        }
+      }
+
+      if (foundFile) {
+        const audioBlob = foundFile;
+        const url = URL.createObjectURL(audioBlob);
+
+        const updatedTrack = { ...currentTrack, url };
+        setPlaylist(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
+        await saveTrack(updatedTrack, audioBlob);
+        setShowMissingAudioModal(false);
+      } else {
+        alert(`O arquivo "${currentTrack.audioFileName}" não foi encontrado. Verifique se você selecionou a pasta correta.`);
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error("Failed to sync audio:", err);
+        alert("Erro ao acessar a pasta ou sincronizar o áudio.");
+      }
+    } finally {
+      setIsSyncingAudio(false);
       setSyncProgress(0);
-      let foundFile: File | null = null;
-      const targetName = currentTrack.audioFileName.toLowerCase();
-
-      try {
-        // Delay para permitir UI renderizar o estado de sincronização
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Method 1: File System Access API (Chrome/Edge)
-        if (!e && 'showDirectoryPicker' in window) {
-          try {
-            const dirHandle = await (window as any).showDirectoryPicker();
-            setSyncProgress(1);
-            await saveLastDirectoryHandle(dirHandle);
-            
-            // Iniciar contagem sem esperar terminar completamente
-            const totalEntries = await countDirEntries(dirHandle) || 1;
-            setSyncProgress(Math.min(5, Math.round(100 / totalEntries)));
-            
-            const processed = { value: 0 };
-            foundFile = await findFileInDirectory(dirHandle, targetName, totalEntries, processed);
-          } catch (pickerError) {
-            console.warn("Directory picker failed, falling back to file input:", pickerError);
-            if (folderInputRef.current) {
-              folderInputRef.current.click();
-            }
-            return;
-          }
-        } 
-        // Method 2: Fallback Input (Safari/iOS/Firefox or manual select)
-        else if (e && e.target.files) {
-          const files = e.target.files;
-          const totalFiles = Math.max(files.length, 1);
-          
-          for (let i = 0; i < totalFiles; i++) {
-            const f = files[i];
-            setSyncProgress(Math.round(((i + 1) / totalFiles) * 100));
-            if (f.name.toLowerCase() === targetName) {
-              foundFile = f;
-              break;
-            }
-          }
-        }
-
-        if (foundFile) {
-          const audioBlob = foundFile;
-          const url = URL.createObjectURL(audioBlob);
-          
-          const updatedTrack = { ...currentTrack, url };
-          setPlaylist(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
-          await saveTrack(updatedTrack, audioBlob);
-          setShowMissingAudioModal(false);
-        } else {
-           alert(`O arquivo "${currentTrack.audioFileName}" não foi encontrado. Verifique se você selecionou a pasta correta.`);
-        }
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          console.error("Failed to sync audio:", err);
-          alert("Erro ao acessar a pasta ou sincronizar o áudio.");
-        }
-      } finally {
-        setIsSyncingAudio(false);
-        setSyncProgress(0);
-        if (folderInputRef.current) folderInputRef.current.value = '';
-      }
-    };
+      if (folderInputRef.current) folderInputRef.current.value = '';
+    }
+  };
   const [userApiKey, setUserApiKey] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("gemini_api_key") || "";
@@ -435,7 +435,7 @@ export default function App() {
   });
   const [transcribePercent, setTranscribePercent] = useState(0);
   const [flashcardPercent, setFlashcardPercent] = useState(0);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -446,7 +446,7 @@ export default function App() {
     if (showFlashcards) {
       const mediaElements = document.querySelectorAll('audio, video');
       mediaElements.forEach((el: any) => el.pause());
-      
+
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -455,10 +455,10 @@ export default function App() {
 
   const handleOpenFlashcards = async (startIndex: number = 0) => {
     if (!currentTrack) return;
-    
+
     // Set the starting index
     setFlashcardStartIndex(startIndex);
-    
+
     if (currentTrack.flashcards && currentTrack.flashcards.length > 0) {
       setShowFlashcards(true);
       return;
@@ -509,7 +509,7 @@ export default function App() {
         const [saved] = await Promise.all([
           getSavedTracks(),
         ]);
-        
+
         if (saved && saved.length > 0) {
           setPlaylist(saved);
           await refreshGlobalKnownWords(saved);
@@ -527,33 +527,33 @@ export default function App() {
   }, []);
 
   const toggleGlobalKnownWord = (word: string) => {
-     const lower = word.toLowerCase();
-     setGlobalKnownWords(prev => {
-       const isKnown = prev.includes(lower);
-       const next = isKnown ? prev.filter(w => w !== lower) : [...prev, lower];
-       set("lingosync_global_known_words", next).catch(console.error);
-       return next;
-     });
+    const lower = word.toLowerCase();
+    setGlobalKnownWords(prev => {
+      const isKnown = prev.includes(lower);
+      const next = isKnown ? prev.filter(w => w !== lower) : [...prev, lower];
+      set("lingosync_global_known_words", next).catch(console.error);
+      return next;
+    });
 
-     setPlaylist(prev => {
-       const track = prev[currentTrackIndex];
-       if (!track) return prev;
+    setPlaylist(prev => {
+      const track = prev[currentTrackIndex];
+      if (!track) return prev;
 
-       const trackKnown = track.knownWords || [];
-       const trackIsKnown = trackKnown.includes(lower);
-       const nextTrackKnown = trackIsKnown
-         ? trackKnown.filter(w => w !== lower)
-         : [...trackKnown, lower];
+      const trackKnown = track.knownWords || [];
+      const trackIsKnown = trackKnown.includes(lower);
+      const nextTrackKnown = trackIsKnown
+        ? trackKnown.filter(w => w !== lower)
+        : [...trackKnown, lower];
 
-       updateTrackMetadata(track.id, { knownWords: nextTrackKnown }).catch(console.error);
+      updateTrackMetadata(track.id, { knownWords: nextTrackKnown }).catch(console.error);
 
-       return prev.map((item, idx) =>
-         idx === currentTrackIndex ? { ...item, knownWords: nextTrackKnown } : item
-       );
-     });
-   };
+      return prev.map((item, idx) =>
+        idx === currentTrackIndex ? { ...item, knownWords: nextTrackKnown } : item
+      );
+    });
+  };
 
-   const togglePlay = () => {
+  const togglePlay = () => {
     // If audio is not synced, show the missing audio modal instead of playing
     if (!currentTrack?.url || currentTrack.url.startsWith('blob:')) {
       // Check if it's the silent placeholder (44 bytes)
@@ -709,12 +709,12 @@ export default function App() {
       ...track,
       knownWords: mergedKnownWords,
     };
-    
+
     // Retrieve audio from IndexedDB and embed as base64
     try {
       const storedTracks = await get<any[]>('lingosync_tracks') || [];
       const storedTrack = storedTracks.find((t: any) => t.id === track.id);
-      
+
       if (storedTrack?.audioBuffer) {
         const audioBlob = new Blob([storedTrack.audioBuffer], { type: storedTrack.audioType || 'audio/wav' });
         const base64 = await blobDirectToBase64(audioBlob);
@@ -723,11 +723,11 @@ export default function App() {
     } catch (err) {
       console.warn("Could not embed audio in export:", err);
     }
-    
+
     // Clean up transient fields
     delete exportData.url;
     delete exportData.localVideoUrl;
-    
+
     // Remove flashcard audioUrl fields (uses browser SpeechSynthesis or Gemini TTS)
     if (exportData.flashcards) {
       exportData.flashcards = exportData.flashcards.map((fc: any) => {
@@ -796,7 +796,7 @@ export default function App() {
       try {
         const data = JSON.parse(reader.result as string);
         if (!data.transcript) throw new Error("Formato inválido: o arquivo não contém transcrição.");
-        
+
         if (Array.isArray(data.transcript) && data.transcript.length === 0) {
           alert("Atenção: A lição importada está vazia (não possui legendas). O arquivo parece ter sido gerado enquanto o sistema falhava. Tente transcrever o áudio original `.wav` novamente.");
         }
@@ -841,7 +841,7 @@ export default function App() {
         if (!data.audioBase64) {
           const targetName = (data.audioFileName || (data.title ? `${data.title}.mp3` : "")).toLowerCase();
           let found = false;
-          
+
           if (targetName) {
             try {
               const dirHandle = await getLastDirectoryHandle();
@@ -853,7 +853,7 @@ export default function App() {
                     if (entry.kind === 'file' && entry.name.toLowerCase() === targetName) {
                       const audioFile = await (entry as any).getFile();
                       const url = URL.createObjectURL(audioFile);
-                      
+
                       // Found! Update track in state and DB
                       const updatedTrack = { ...newTrack, url };
                       setPlaylist(prev => prev.map(t => t.id === updatedTrack.id ? updatedTrack : t));
@@ -950,7 +950,7 @@ export default function App() {
       const { url, localVideoUrl, ...updates } = updatedTrack; // never update transient URLs via metadata
       updateTrackMetadata(currentTrack.id, updates);
     }
-    setPlaylist(prev => prev.map((track, i) => 
+    setPlaylist(prev => prev.map((track, i) =>
       i === currentTrackIndex ? { ...track, ...updatedTrack } : track
     ));
   };
@@ -1002,17 +1002,17 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center space-x-1">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setShowHelp(true)}
               className="text-gray-600 hover:text-gray-300 h-8 w-8"
             >
               <Info className="w-4 h-4" />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setShowSettings(true)}
               className="text-gray-600 hover:text-gray-300 h-8 w-8"
             >
@@ -1021,8 +1021,8 @@ export default function App() {
           </div>
         </div>
         <p className="text-gray-500 text-sm font-medium tracking-tight">
-          {currentView === 'home' 
-            ? `Aprenda ${getLanguageName(currentLanguage)} de forma divertida com legendas do seu conteúdo preferido` 
+          {currentView === 'home'
+            ? `Aprenda ${getLanguageName(currentLanguage)} de forma divertida com legendas do seu conteúdo preferido`
             : "Selecione uma lição para começar"}
         </p>
       </div>
@@ -1055,8 +1055,8 @@ export default function App() {
     };
 
     return (
-      <motion.div 
-        className="relative mb-2 rounded-xl group overflow-hidden" 
+      <motion.div
+        className="relative mb-2 rounded-xl group overflow-hidden"
         ref={containerRef}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1093,7 +1093,7 @@ export default function App() {
         {/* Sliding Foreground Content */}
         <motion.div
           initial={false}
-          animate={{ x: isMenuOpen ? -140 : 0 }} 
+          animate={{ x: isMenuOpen ? -140 : 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 40 }}
           className={cn(
             "relative z-10 w-full flex items-center p-4 rounded-xl transition-colors duration-300 text-left border-[1.5px] cursor-pointer bg-[#0d0d0d]",
@@ -1120,15 +1120,15 @@ export default function App() {
           </div>
 
           {/* Drag/Menu Icon - Two Lines */}
-          <div 
-             className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex flex-col items-center justify-center space-y-[4px] rounded-full hover:bg-white/5 transition-all cursor-pointer group/icon"
-             onClick={(e: React.MouseEvent) => {
-               e.stopPropagation();
-               setIsMenuOpen(!isMenuOpen);
-             }}
+          <div
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex flex-col items-center justify-center space-y-[4px] rounded-full hover:bg-white/5 transition-all cursor-pointer group/icon"
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              setIsMenuOpen(!isMenuOpen);
+            }}
           >
-             <div className="w-[14px] h-[1.5px] bg-gray-500 group-hover/icon:bg-gray-300 rounded-full transition-colors" />
-             <div className="w-[14px] h-[1.5px] bg-gray-500 group-hover/icon:bg-gray-300 rounded-full transition-colors" />
+            <div className="w-[14px] h-[1.5px] bg-gray-500 group-hover/icon:bg-gray-300 rounded-full transition-colors" />
+            <div className="w-[14px] h-[1.5px] bg-gray-500 group-hover/icon:bg-gray-300 rounded-full transition-colors" />
           </div>
         </motion.div>
       </motion.div>
@@ -1137,7 +1137,7 @@ export default function App() {
 
   const PlaylistList = () => {
     const filteredPlaylist = playlist.filter(t => (t.language || 'en') === currentLanguage);
-    
+
     // Sort by lessonNumber, falling back to original order index if undefined
     const sortedPlaylist = [...filteredPlaylist].sort((a, b) => {
       const indexA = filteredPlaylist.indexOf(a);
@@ -1146,7 +1146,7 @@ export default function App() {
       const numB = b.lessonNumber !== undefined ? b.lessonNumber : (indexB + 1);
       return numA - numB;
     });
-    
+
     return (
       <div className="flex-1 flex flex-col space-y-6 min-h-0">
         <div className="flex items-center justify-between border-b-[1.5px] border-white/10 pb-4 mt-2">
@@ -1196,7 +1196,7 @@ export default function App() {
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/[0.02] flex items-center justify-center border-[1.5px] border-white/10 shadow-inner">
                 <LingoSyncLogo className="w-14 h-14 sm:w-16 sm:h-16" />
               </div>
-              <motion.h1 
+              <motion.h1
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.05, ease: "easeOut" }}
@@ -1209,142 +1209,142 @@ export default function App() {
         )}
       </AnimatePresence>
       <div className="h-dvh w-full bg-[#0d0d0d] text-gray-400 font-sans selection:bg-white/10 overflow-hidden flex flex-col">
-          <input type="file" ref={importInputRef} onChange={handleImport} accept=".lsync.json,.json" className="hidden" />
-          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="audio/*,video/*,.mp3,.wav,.m4a,.mp4,.webm,.mpeg,.ogg,.aac,.mov,.mkv" className="hidden" />
+        <input type="file" ref={importInputRef} onChange={handleImport} accept=".lsync.json,.json" className="hidden" />
+        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="audio/*,video/*,.mp3,.wav,.m4a,.mp4,.webm,.mpeg,.ogg,.aac,.mov,.mkv" className="hidden" />
 
-      <div className={cn(
-        "relative max-w-5xl mx-auto w-full px-4 sm:px-6 transition-all duration-500 flex flex-col min-h-0 flex-1",
-        currentView === 'lesson' ? "pt-2 pb-6 sm:pt-4 sm:pb-8" : "py-4 sm:py-8"
-      )}>
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-full animate-pulse transition-opacity duration-1000">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#827367]">Sincronizando Biblioteca...</p>
-          </div>
-        ) : (
-          <>
-            <AnimatePresence mode="wait">
-              {currentView === 'home' && (
-                <motion.div 
-                  key="home"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="h-full w-full max-w-5xl mx-auto overflow-hidden"
-                >
-                  <ScrollArea className="h-full w-full">
-                    <div className="flex flex-col space-y-8 py-4 pb-10">
-                  {/* Home Header */}
-                  <SidebarHeader />
+        <div className={cn(
+          "relative max-w-5xl mx-auto w-full px-4 sm:px-6 transition-all duration-500 flex flex-col min-h-0 flex-1",
+          currentView === 'lesson' ? "pt-2 pb-6 sm:pt-4 sm:pb-8" : "py-4 sm:py-8"
+        )}>
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-full animate-pulse transition-opacity duration-1000">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#827367]">Sincronizando Biblioteca...</p>
+            </div>
+          ) : (
+            <>
+              <AnimatePresence mode="wait">
+                {currentView === 'home' && (
+                  <motion.div
+                    key="home"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="h-full w-full max-w-5xl mx-auto overflow-hidden"
+                  >
+                    <ScrollArea className="h-full w-full">
+                      <div className="flex flex-col space-y-8 py-4 pb-10">
+                        {/* Home Header */}
+                        <SidebarHeader />
 
-                  {/* Main Action Buttons Stacked */}
-                  <div className="flex flex-col space-y-4">
-                    <div className="space-y-3">
-                      <button 
+                        {/* Main Action Buttons Stacked */}
+                        <div className="flex flex-col space-y-4">
+                          <div className="space-y-3">
+                            <button
+                              onClick={() => setCurrentView('library')}
+                              className="w-full flex items-center justify-center py-4 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-sm shadow-black/40"
+                            >
+                              <Library className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
+                              <div className="flex flex-col items-center text-center">
+                                <span className="text-sm font-bold uppercase tracking-widest text-[#827367]">Acessar Biblioteca de Lições</span>
+                                <span className="text-sm font-normal opacity-70 mt-1">Estude e exporte suas lições para salvar</span>
+                              </div>
+                            </button>
+                          </div>
+
+                          <div className="space-y-3">
+                            <button
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isTranscribing}
+                              className="w-full flex items-center justify-center py-4 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
+                            >
+                              <AudioLines className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
+                              <div className="flex flex-col items-center text-center">
+                                <span className="text-sm font-bold uppercase tracking-widest">
+                                  {isTranscribing
+                                    ? (transcribePercent > 90 ? "Sincronizando..." : `Progresso: ${Math.round(transcribePercent)}%`)
+                                    : "Gerar Lição (Importar Áudio)"}
+                                </span>
+                                <span className="text-sm font-normal opacity-70 mt-1">Recomendado: 1 a 3 min. Máximo: 5 min.</span>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Home Content Box */}
+                        <div className="flex-1 flex flex-col items-center justify-center bg-[#0d0d0d] rounded-3xl border-[1.5px] border-white/10 p-8 sm:p-12 text-center space-y-8 shadow-2xl relative overflow-hidden">
+                          <div className="absolute inset-0 bg-radial-gradient from-[#443a32]/10 to-transparent opacity-50" />
+                          <div className="relative z-10 space-y-8 flex flex-col items-center">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/[0.02] flex items-center justify-center border-[1.5px] border-white/10 shadow-inner">
+                              <LingoSyncLogo className="w-14 h-14 sm:w-16 sm:h-16" />
+                            </div>
+                            <div className="space-y-4">
+                              <h2 className="text-3xl font-bold text-gray-100 tracking-tight">Bem-vindo ao LingoSync</h2>
+                              <p className="text-gray-400 text-sm max-w-sm mx-auto leading-relaxed">
+                                Transforme seus áudios favoritos em lições de inglês poderosas. Com o <b>LingoSync</b>, você aprende de forma natural usando legendas inteligentes e traduções precisas, seguindo o método comprovado de <b>Input Compreensivo</b>.
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => importInputRef.current?.click()}
+                              disabled={isImporting}
+                              className="max-w-sm w-full flex items-center justify-center p-4 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-xl shadow-black/60 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isImporting ? <Loader2 className="w-5 h-5 mr-3 animate-spin text-[#827367]" /> : <Upload className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform text-[#827367]" />}
+                              <span className="text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">{isImporting ? 'Importando...' : 'Importar Lição (.lsync.json)'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </ScrollArea>
+                  </motion.div>
+                )}
+
+                {currentView === 'library' && (
+                  <motion.div
+                    key="library"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="flex flex-col space-y-8 h-full w-full max-w-5xl mx-auto"
+                  >
+                    <div className="flex flex-col space-y-8 h-full">
+                      <div className="flex items-center justify-between">
+                        <Button
+                          variant="ghost"
+                          onClick={() => setCurrentView('home')}
+                          className="text-gray-600 hover:text-gray-300 text-xs uppercase tracking-widest font-bold flex items-center justify-start w-fit px-2 whitespace-nowrap"
+                        >
+                          <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
+                          <span>Início</span>
+                        </Button>
+                        <Badge variant="ghost" className="text-xs font-bold uppercase tracking-widest text-[#827367] bg-[#827367]/20 border-none px-4 py-1.5 h-10 rounded-full flex items-center justify-center leading-none shrink-0 gap-3">
+                          <LanguageSelector currentLanguage={currentLanguage} onLanguageChange={setCurrentLanguage} />
+                          <div className="w-[1px] h-3 bg-[#827367]/30" />
+                          <span>VOCABULÁRIO: {globalKnownWords.length}</span>
+                        </Badge>
+                      </div>
+                      <SidebarHeader />
+                      <PlaylistList />
+                    </div>
+                  </motion.div>
+                )}
+
+                {currentView === 'lesson' && currentTrack && (
+                  <motion.div
+                    key="lesson"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    className="flex flex-col h-full max-w-5xl mx-auto w-full overflow-hidden relative"
+                  >
+                    <div className="pb-4 flex items-center justify-between">
+                      <Button
+                        variant="ghost"
                         onClick={() => setCurrentView('library')}
-                        className="w-full flex items-center justify-center py-4 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-sm shadow-black/40"
-                      >
-                        <Library className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
-                        <div className="flex flex-col items-center text-center">
-                          <span className="text-sm font-bold uppercase tracking-widest text-[#827367]">Acessar Biblioteca de Lições</span>
-                          <span className="text-sm font-normal opacity-70 mt-1">Estude e exporte suas lições para salvar</span>
-                        </div>
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isTranscribing}
-                        className="w-full flex items-center justify-center py-4 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
-                      >
-                        <AudioLines className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
-                        <div className="flex flex-col items-center text-center">
-                          <span className="text-sm font-bold uppercase tracking-widest">
-                            {isTranscribing 
-                              ? (transcribePercent > 90 ? "Sincronizando..." : `Progresso: ${Math.round(transcribePercent)}%`) 
-                              : "Gerar Lição (Importar Áudio)"}
-                          </span>
-                          <span className="text-sm font-normal opacity-70 mt-1">Recomendado: 1 a 3 min. Máximo: 5 min.</span>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Home Content Box */}
-                  <div className="flex-1 flex flex-col items-center justify-center bg-[#0d0d0d] rounded-3xl border-[1.5px] border-white/10 p-8 sm:p-12 text-center space-y-8 shadow-2xl relative overflow-hidden">
-                    <div className="absolute inset-0 bg-radial-gradient from-[#443a32]/10 to-transparent opacity-50" />
-                    <div className="relative z-10 space-y-8 flex flex-col items-center">
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/[0.02] flex items-center justify-center border-[1.5px] border-white/10 shadow-inner">
-                        <LingoSyncLogo className="w-14 h-14 sm:w-16 sm:h-16" />
-                      </div>
-                      <div className="space-y-4">
-                        <h2 className="text-3xl font-bold text-gray-100 tracking-tight">Bem-vindo ao LingoSync</h2>
-                        <p className="text-gray-400 text-sm max-w-sm mx-auto leading-relaxed">
-                          Transforme seus áudios favoritos em lições de inglês poderosas. Com o <b>LingoSync</b>, você aprende de forma natural usando legendas inteligentes e traduções precisas, seguindo o método comprovado de <b>Input Compreensivo</b>.
-                        </p>
-                      </div>
-                      <button 
-                        onClick={() => importInputRef.current?.click()}
-                        disabled={isImporting}
-                        className="max-w-sm w-full flex items-center justify-center p-4 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-xl shadow-black/60 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isImporting ? <Loader2 className="w-5 h-5 mr-3 animate-spin text-[#827367]" /> : <Upload className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform text-[#827367]" /> }
-                        <span className="text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">{isImporting ? 'Importando...' : 'Importar Lição (.lsync.json)'}</span>
-                      </button>
-                    </div>
-                    </div>
-                    </div>
-                  </ScrollArea>
-                </motion.div>
-              )}
-
-              {currentView === 'library' && (
-                <motion.div 
-                  key="library"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="flex flex-col space-y-8 h-full w-full max-w-5xl mx-auto"
-                >
-                  <div className="flex flex-col space-y-8 h-full">
-                    <div className="flex items-center justify-between">
-                      <Button 
-                        variant="ghost" 
-                        onClick={() => setCurrentView('home')}
                         className="text-gray-600 hover:text-gray-300 text-xs uppercase tracking-widest font-bold flex items-center justify-start w-fit px-2 whitespace-nowrap"
                       >
                         <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
-                        <span>Início</span>
+                        <span>Biblioteca</span>
                       </Button>
-                      <Badge variant="ghost" className="text-xs font-bold uppercase tracking-widest text-[#827367] bg-[#827367]/20 border-none px-4 py-1.5 h-10 rounded-full flex items-center justify-center leading-none shrink-0 gap-3">
-                        <LanguageSelector currentLanguage={currentLanguage} onLanguageChange={setCurrentLanguage} />
-                        <div className="w-[1px] h-3 bg-[#827367]/30" />
-                        <span>VOCABULÁRIO: {globalKnownWords.length}</span>
-                      </Badge>
-                    </div>
-                    <SidebarHeader />
-                    <PlaylistList />
-                  </div>
-                </motion.div>
-              )}
-
-              {currentView === 'lesson' && currentTrack && (
-                <motion.div 
-                  key="lesson"
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  className="flex flex-col h-full max-w-5xl mx-auto w-full overflow-hidden relative"
-                >
-                  <div className="pb-4 flex items-center justify-between">
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => setCurrentView('library')}
-                      className="text-gray-600 hover:text-gray-300 text-xs uppercase tracking-widest font-bold flex items-center justify-start w-fit px-2 whitespace-nowrap"
-                    >
-                      <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
-                      <span>Biblioteca</span>
-                    </Button>
 
                       <Button
                         variant="ghost"
@@ -1353,27 +1353,27 @@ export default function App() {
                         disabled={isGeneratingCards}
                         className="text-xs uppercase tracking-widest h-10 font-bold text-[#827367] hover:text-[#9a8c80] flex flex-row items-center"
                       >
-                      {isGeneratingCards ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin shrink-0" />
-                          {Math.round(flashcardPercent)}%
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="5" y="2" width="14" height="20" rx="4" />
-                          </svg>
-                          Flashcards
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  <div className="flex-1 min-h-0 h-full w-full overflow-hidden">
-                    <AudioPlayer 
-                        track={currentTrack} 
-                        trackNumber={currentTrackIndex + 1} 
-                        onNext={handleNext} 
-                        onPrev={handlePrev} 
+                        {isGeneratingCards ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin shrink-0" />
+                            {Math.round(flashcardPercent)}%
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="5" y="2" width="14" height="20" rx="4" />
+                            </svg>
+                            Flashcards
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <div className="flex-1 min-h-0 h-full w-full overflow-hidden">
+                      <AudioPlayer
+                        track={currentTrack}
+                        trackNumber={currentTrackIndex + 1}
+                        onNext={handleNext}
+                        onPrev={handlePrev}
                         onExport={handleExport}
                         onUpdateTrack={handleUpdateTrack}
                         onVideoSyncClick={() => setShowSyncModal(true)}
@@ -1388,678 +1388,676 @@ export default function App() {
                         isPausedExternally={showFlashcards}
                         onOpenFlashcardAtIndex={(idx) => handleOpenFlashcards(idx)}
                       />
-                  </div>
+                    </div>
 
-                  {/* FLASHCARDS OVERLAY */}
-                  <AnimatePresence>
-                    {showFlashcards && (
-                      <motion.div 
-                        key="flashcards-overlay"
-                        initial={{ opacity: 0, scale: 0.98 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.98 }}
-                        className="fixed inset-0 z-50 bg-[#0d0d0d] flex flex-col items-center justify-center p-4 sm:p-8"
-                      >
-                        <div className="w-full max-w-5xl h-full pb-4 sm:pb-8 flex flex-col">
-                          <FlashcardsView 
-                            track={currentTrack} 
-                            onClose={() => setShowFlashcards(false)} 
-                            onUpdateTrack={handleUpdateTrack}
-                            globalKnownWords={globalKnownWords}
-                            onToggleKnownWord={toggleGlobalKnownWord}
-                            userApiKey={userApiKey}
-                            onMissingKey={() => setShowKeyAlert(true)}
-                            onQuotaExceeded={() => setShowQuotaModal(true)}
-                            onFlashcardAudioError={(message) => {
-                              setAudioErrorMessage(message);
-                              setShowAudioErrorModal(true);
-                            }}
-                            hasBillingEnabled={hasBillingEnabled}
-                            initialIndex={flashcardStartIndex}
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </>
-        )}
-      </div>
+                    {/* FLASHCARDS OVERLAY */}
+                    <AnimatePresence>
+                      {showFlashcards && (
+                        <motion.div
+                          key="flashcards-overlay"
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          className="fixed inset-0 z-50 bg-[#0d0d0d] flex flex-col items-center justify-center p-4 sm:p-8"
+                        >
+                          <div className="w-full max-w-5xl h-full pb-4 sm:pb-8 flex flex-col">
+                            <FlashcardsView
+                              track={currentTrack}
+                              onClose={() => setShowFlashcards(false)}
+                              onUpdateTrack={handleUpdateTrack}
+                              globalKnownWords={globalKnownWords}
+                              onToggleKnownWord={toggleGlobalKnownWord}
+                              userApiKey={userApiKey}
+                              onMissingKey={() => setShowKeyAlert(true)}
+                              onQuotaExceeded={() => setShowQuotaModal(true)}
+                              onFlashcardAudioError={(message) => {
+                                setAudioErrorMessage(message);
+                                setShowAudioErrorModal(true);
+                              }}
+                              hasBillingEnabled={hasBillingEnabled}
+                              initialIndex={flashcardStartIndex}
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
+        </div>
 
-      {/* Settings Modal */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowSettings(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-md max-h-[90dvh] bg-[#161616] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col"
-              onClick={e => e.stopPropagation()}
+        {/* Settings Modal */}
+        <AnimatePresence>
+          {showSettings && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowSettings(false)}
             >
-              <div className="p-6 border-b border-white/5 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Settings2 className="w-5 h-5 text-gray-400" />
-                  <h3 className="text-lg font-bold text-gray-200">Configurações</h3>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => setShowSettings(false)} className="rounded-full">
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-
-                {/* AssemblyAI API Key */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
-                      <AudioLines className="w-3 h-3 mr-2" />
-                      AssemblyAI API Key
-                    </label>
-                    <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
-                      Transcrição
-                    </span>
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="w-full max-w-md max-h-[90dvh] bg-[#161616] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Settings2 className="w-5 h-5 text-gray-400" />
+                    <h3 className="text-lg font-bold text-gray-200">Configurações</h3>
                   </div>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value={assemblyAiApiKey}
-                      onChange={(e) => setAssemblyAiApiKey(e.target.value)}
-                      placeholder="Cole sua chave AssemblyAI aqui..."
-                      className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
-                    />
-                  </div>
-                  <p className="text-[10px] text-gray-500 leading-relaxed italic">
-                    Usada exclusivamente para transcrição de áudio. Salva apenas no seu navegador.
-                  </p>
+                  <Button variant="ghost" size="icon" onClick={() => setShowSettings(false)} className="rounded-full">
+                    <X className="w-5 h-5" />
+                  </Button>
                 </div>
 
-                {/* DeepSeek API Key */}
-                <div className="space-y-3 pt-4 border-t border-white/5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
-                      <Database className="w-3 h-3 mr-2" />
-                      DeepSeek API Key
-                    </label>
-                    <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
-                      Inteligência · DeepSeek V3
-                    </span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value={deepseekApiKey}
-                      onChange={(e) => setDeepseekApiKey(e.target.value)}
-                      placeholder="Cole sua chave DeepSeek aqui..."
-                      className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
-                    />
-                  </div>
-                  <p className="text-[10px] text-gray-500 leading-relaxed italic">
-                    Usada para tradução e organização. Modelo DeepSeek V3.
-                  </p>
-                </div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-                {/* Gemini API Key */}
-                <div className="space-y-3 pt-4 border-t border-white/5">
-                  <div className="flex items-center justify-between">
+                  {/* AssemblyAI API Key */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
+                        <AudioLines className="w-3 h-3 mr-2" />
+                        AssemblyAI API Key
+                      </label>
+                      <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
+                        Transcrição
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={assemblyAiApiKey}
+                        onChange={(e) => setAssemblyAiApiKey(e.target.value)}
+                        placeholder="Cole sua chave AssemblyAI aqui..."
+                        className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                      Usada exclusivamente para transcrição de áudio. Salva apenas no seu navegador.
+                    </p>
+                  </div>
+
+                  {/* DeepSeek API Key */}
+                  <div className="space-y-3 pt-4 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
+                        <Database className="w-3 h-3 mr-2" />
+                        DeepSeek API Key
+                      </label>
+                      <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
+                        Inteligência · DeepSeek V3
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={deepseekApiKey}
+                        onChange={(e) => setDeepseekApiKey(e.target.value)}
+                        placeholder="Cole sua chave DeepSeek aqui..."
+                        className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                      Usada para tradução e organização. Modelo DeepSeek V3.
+                    </p>
+                  </div>
+
+                  {/* Gemini API Key */}
+                  <div className="space-y-3 pt-4 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
+                        <Key className="w-3 h-3 mr-2" />
+                        Google Gemini API Key
+                      </label>
+                      <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
+                        Tradução · Flashcards · TTS
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={userApiKey}
+                        onChange={(e) => setUserApiKey(e.target.value)}
+                        placeholder="Cole sua chave Gemini aqui..."
+                        className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                      Sua chave é salva apenas no seu navegador e não é enviada para nossos servidores.
+                    </p>
+                  </div>
+
+                  {/* Dashboard Links Footer */}
+                  <div className="pt-6 border-t border-white/10 space-y-4 bg-white/[0.02] -mx-6 -mb-6 p-6">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-4">Atalhos de Consumo</h4>
+
+                    {/* AssemblyAI */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">AssemblyAI</span>
+                      <div className="flex items-center space-x-4">
+                        <a href="https://www.assemblyai.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
+                          Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                        <a href="https://www.assemblyai.com/dashboard/cost" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
+                          Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* DeepSeek */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">DeepSeek</span>
+                      <div className="flex items-center space-x-4">
+                        <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
+                          Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                        <a href="https://platform.deepseek.com/usage" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
+                          Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Gemini */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Google Gemini</span>
+                      <div className="flex items-center space-x-4">
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
+                          Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                        <a href="https://aistudio.google.com/app/plan" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
+                          Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-4 border-t border-white/5">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
                       <Key className="w-3 h-3 mr-2" />
-                      Google Gemini API Key
+                      Faturamento Ativo
                     </label>
-                    <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
-                      Tradução · Flashcards · TTS
-                    </span>
-                  </div>
-                  <div className="relative">
-                    <input 
-                      type="password"
-                      value={userApiKey}
-                      onChange={(e) => setUserApiKey(e.target.value)}
-                      placeholder="Cole sua chave Gemini aqui..."
-                      className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
-                    />
-                  </div>
-                  <p className="text-[10px] text-gray-500 leading-relaxed italic">
-                    Sua chave é salva apenas no seu navegador e não é enviada para nossos servidores.
-                  </p>
-                </div>
-
-                {/* Dashboard Links Footer */}
-                <div className="pt-6 border-t border-white/10 space-y-4 bg-white/[0.02] -mx-6 -mb-6 p-6">
-                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-4">Atalhos de Consumo</h4>
-                  
-                  {/* AssemblyAI */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">AssemblyAI</span>
-                    <div className="flex items-center space-x-4">
-                      <a href="https://www.assemblyai.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                        Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                      <a href="https://www.assemblyai.com/dashboard/cost" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                        Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* DeepSeek */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">DeepSeek</span>
-                    <div className="flex items-center space-x-4">
-                      <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                        Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                      <a href="https://platform.deepseek.com/usage" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                        Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* Gemini */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Google Gemini</span>
-                    <div className="flex items-center space-x-4">
-                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                        Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                      <a href="https://aistudio.google.com/app/plan" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                        Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-4 border-t border-white/5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
-                    <Key className="w-3 h-3 mr-2" />
-                    Faturamento Ativo
-                  </label>
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/10 gap-4">
-                    <div className="space-y-1 flex-1">
-                      <p className="text-sm font-bold text-gray-200">
-                        Tenho faturamento configurado na minha conta
-                      </p>
-                      <p className="text-[10px] text-gray-500 leading-relaxed">
-                        Se ativado, os limites gratuitos não serão aplicados. Use apenas se você tiver uma forma de pagamento configurada no Google AI Studio.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setHasBillingEnabled(!hasBillingEnabled)}
-                      className={`relative w-11 h-6 rounded-full transition-all duration-300 flex-shrink-0 focus:outline-none ${
-                        hasBillingEnabled ? 'bg-[#827367] shadow-[0_0_10px_rgba(130,115,103,0.3)]' : 'bg-gray-800'
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${
-                          hasBillingEnabled ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-white/5 space-y-4">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <p className="text-sm font-bold text-gray-300 flex items-center">
-                        <Database className="w-4 h-4 mr-2" /> Gerenciar Espaço
-                      </p>
-                      <p className="text-[10px] text-gray-500 leading-relaxed">
-                        Se notar lentidão, o app pode estar sobrecarregado. Recomendamos exportar e excluir lições já dominadas para liberar espaço. Na biblioteca, basta arrastar a lição para a esquerda para acessar as opções de exportar e excluir.
-                      </p>
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/10 gap-4">
+                      <div className="space-y-1 flex-1">
+                        <p className="text-sm font-bold text-gray-200">
+                          Tenho faturamento configurado na minha conta
+                        </p>
+                        <p className="text-[10px] text-gray-500 leading-relaxed">
+                          Se ativado, os limites gratuitos não serão aplicados. Use apenas se você tiver uma forma de pagamento configurada no Google AI Studio.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setHasBillingEnabled(!hasBillingEnabled)}
+                        className={`relative w-11 h-6 rounded-full transition-all duration-300 flex-shrink-0 focus:outline-none ${hasBillingEnabled ? 'bg-[#827367] shadow-[0_0_10px_rgba(130,115,103,0.3)]' : 'bg-gray-800'
+                          }`}
+                      >
+                        <div
+                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${hasBillingEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                        />
+                      </button>
                     </div>
                   </div>
 
                   <div className="pt-4 border-t border-white/5 space-y-4">
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-gray-300 flex items-center">
-                        <RefreshCw className="w-4 h-4 mr-2 text-gray-500" />
-                        Monitorar Uso das APIs
-                      </p>
-                      <p className="text-[10px] text-gray-500 leading-relaxed">
-                        Acompanhe em tempo real sua cota gratuita e consumo nos painéis oficiais.
-                      </p>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-sm font-bold text-gray-300 flex items-center">
+                          <Database className="w-4 h-4 mr-2" /> Gerenciar Espaço
+                        </p>
+                        <p className="text-[10px] text-gray-500 leading-relaxed">
+                          Se notar lentidão, o app pode estar sobrecarregado. Recomendamos exportar e excluir lições já dominadas para liberar espaço. Na biblioteca, basta arrastar a lição para a esquerda para acessar as opções de exportar e excluir.
+                        </p>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-2">
-                      <a 
-                        href="https://www.assemblyai.com/dashboard/cost" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] hover:bg-white/[0.04] transition-all group"
-                      >
-                        <span className="uppercase tracking-widest">MEU USO (ASSEMBLYAI STT)</span>
-                        <ExternalLink className="w-3 h-3 text-[#827367] opacity-80 group-hover:opacity-100 transition-opacity" />
-                      </a>
 
-                      <a 
-                        href="https://platform.deepseek.com/usage" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] hover:bg-white/[0.04] transition-all group"
-                      >
-                        <span className="uppercase tracking-widest">MEU USO (DEEPSEEK V3 INTELLIGENCE)</span>
-                        <ExternalLink className="w-3 h-3 text-[#827367] opacity-80 group-hover:opacity-100 transition-opacity" />
-                      </a>
+                    <div className="pt-4 border-t border-white/5 space-y-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-gray-300 flex items-center">
+                          <RefreshCw className="w-4 h-4 mr-2 text-gray-500" />
+                          Monitorar Uso das APIs
+                        </p>
+                        <p className="text-[10px] text-gray-500 leading-relaxed">
+                          Acompanhe em tempo real sua cota gratuita e consumo nos painéis oficiais.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2">
+                        <a
+                          href="https://www.assemblyai.com/dashboard/cost"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] hover:bg-white/[0.04] transition-all group"
+                        >
+                          <span className="uppercase tracking-widest">MEU USO (ASSEMBLYAI STT)</span>
+                          <ExternalLink className="w-3 h-3 text-[#827367] opacity-80 group-hover:opacity-100 transition-opacity" />
+                        </a>
 
-                      <a 
-                        href="https://aistudio.google.com/app/plan" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] hover:bg-white/[0.04] transition-all group"
-                      >
-                        <span className="uppercase tracking-widest">MEU USO (GOOGLE GEMINI TTS)</span>
-                        <ExternalLink className="w-3 h-3 text-[#827367] opacity-80 group-hover:opacity-100 transition-opacity" />
-                      </a>
+                        <a
+                          href="https://platform.deepseek.com/usage"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] hover:bg-white/[0.04] transition-all group"
+                        >
+                          <span className="uppercase tracking-widest">MEU USO (DEEPSEEK V3 INTELLIGENCE)</span>
+                          <ExternalLink className="w-3 h-3 text-[#827367] opacity-80 group-hover:opacity-100 transition-opacity" />
+                        </a>
+
+                        <a
+                          href="https://aistudio.google.com/app/plan"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] hover:bg-white/[0.04] transition-all group"
+                        >
+                          <span className="uppercase tracking-widest">MEU USO (GOOGLE GEMINI TTS)</span>
+                          <ExternalLink className="w-3 h-3 text-[#827367] opacity-80 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* Hidden Folder Input for Audio Sync */}
-      <input 
-        type="file"
-        ref={folderInputRef}
-        style={{ display: 'none' }}
-        onChange={handleSyncAudioFolder}
-        multiple
-        {...({ webkitdirectory: "", directory: "" } as any)}
-      />
+        {/* Hidden Folder Input for Audio Sync */}
+        <input
+          type="file"
+          ref={folderInputRef}
+          style={{ display: 'none' }}
+          onChange={handleSyncAudioFolder}
+          multiple
+          {...({ webkitdirectory: "", directory: "" } as any)}
+        />
 
-      <VideoSyncModal 
-        isOpen={showSyncModal}
-        onClose={() => setShowSyncModal(false)}
-        isProcessing={isSyncingVideo}
-        hasExistingVideo={!!(currentTrack?.isVideo || currentTrack?.youtubeId || currentTrack?.localVideoUrl || currentTrack?.videoFileName)}
-        onRemove={async () => {
-          if (!currentTrack) return;
-          // Physically remove video data from DB (buffers and metadata)
-          await removeTrackVideo(currentTrack.id);
-          
-          // Update local state with explicit removal
-          const cleanedTrack = { ...currentTrack };
-          delete cleanedTrack.youtubeId;
-          delete cleanedTrack.localVideoUrl;
-          delete cleanedTrack.videoFileName;
-          cleanedTrack.isVideo = false;
-          
-          setPlaylist(prev => prev.map(t => t.id === cleanedTrack.id ? cleanedTrack : t));
-          setShowSyncModal(false);
-        }}
-        onContinue={async (url, videoFile) => {
-          if (!currentTrack) return;
-          
-          setIsSyncingVideo(true);
-          try {
-            const updates: Partial<AudioTrack> = {};
-            
-            if (url) {
-              const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-              const match = url.match(regExp);
-              if (match && match[2].length === 11) {
-                updates.youtubeId = match[2];
-                updates.isVideo = true;
-                // Clear local video when YouTube is synced
-                updates.localVideoUrl = null as any;
-                updates.videoFileName = null as any;
-              } else {
-                alert("Link do YouTube inválido.");
-                return;
-              }
-            }
-            
-            if (videoFile) {
-              updates.localVideoUrl = URL.createObjectURL(videoFile);
-              updates.videoFileName = videoFile.name;
-              updates.isVideo = true;
-              // Clear YouTube when local video is synced
-              updates.youtubeId = null as any;
-              await saveTrackVideo(currentTrack.id, videoFile);
-            }
-            
-            handleUpdateTrack(updates);
+        <VideoSyncModal
+          isOpen={showSyncModal}
+          onClose={() => setShowSyncModal(false)}
+          isProcessing={isSyncingVideo}
+          hasExistingVideo={!!(currentTrack?.isVideo || currentTrack?.youtubeId || currentTrack?.localVideoUrl || currentTrack?.videoFileName)}
+          onRemove={async () => {
+            if (!currentTrack) return;
+            // Physically remove video data from DB (buffers and metadata)
+            await removeTrackVideo(currentTrack.id);
+
+            // Update local state with explicit removal
+            const cleanedTrack = { ...currentTrack };
+            delete cleanedTrack.youtubeId;
+            delete cleanedTrack.localVideoUrl;
+            delete cleanedTrack.videoFileName;
+            cleanedTrack.isVideo = false;
+
+            setPlaylist(prev => prev.map(t => t.id === cleanedTrack.id ? cleanedTrack : t));
             setShowSyncModal(false);
-          } catch (err) {
-            console.error("Sync failed:", err);
-          } finally {
-            setIsSyncingVideo(false);
-          }
-        }}
-      />
+          }}
+          onContinue={async (url, videoFile) => {
+            if (!currentTrack) return;
 
-      {/* Help Modal */}
-      <AnimatePresence>
-        {showHelp && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
-            onClick={() => setShowHelp(false)}
-          >
-            <motion.div 
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
-              className="w-full max-w-2xl bg-[#0d0d0d] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
-              onClick={e => e.stopPropagation()}
+            setIsSyncingVideo(true);
+            try {
+              const updates: Partial<AudioTrack> = {};
+
+              if (url) {
+                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                const match = url.match(regExp);
+                if (match && match[2].length === 11) {
+                  updates.youtubeId = match[2];
+                  updates.isVideo = true;
+                  // Clear local video when YouTube is synced
+                  updates.localVideoUrl = null as any;
+                  updates.videoFileName = null as any;
+                } else {
+                  alert("Link do YouTube inválido.");
+                  return;
+                }
+              }
+
+              if (videoFile) {
+                updates.localVideoUrl = URL.createObjectURL(videoFile);
+                updates.videoFileName = videoFile.name;
+                updates.isVideo = true;
+                // Clear YouTube when local video is synced
+                updates.youtubeId = null as any;
+                await saveTrackVideo(currentTrack.id, videoFile);
+              }
+
+              handleUpdateTrack(updates);
+              setShowSyncModal(false);
+            } catch (err) {
+              console.error("Sync failed:", err);
+            } finally {
+              setIsSyncingVideo(false);
+            }
+          }}
+        />
+
+        {/* Help Modal */}
+        <AnimatePresence>
+          {showHelp && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+              onClick={() => setShowHelp(false)}
             >
-              <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                <div className="flex items-center space-x-3">
-                  <Info className="w-5 h-5 text-[#827367]" />
-                  <h3 className="text-lg font-bold text-gray-200">Guia do LingoSync</h3>
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 20, opacity: 0 }}
+                className="w-full max-w-2xl bg-[#0d0d0d] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                  <div className="flex items-center space-x-3">
+                    <Info className="w-5 h-5 text-[#827367]" />
+                    <h3 className="text-lg font-bold text-gray-200">Guia do LingoSync</h3>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => setShowHelp(false)} className="rounded-full">
+                    <X className="w-5 h-5" />
+                  </Button>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setShowHelp(false)} className="rounded-full">
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-              
-              <ScrollArea className="h-[70vh] p-8">
-                <div className="space-y-10 pb-10">
-                  <section className="space-y-4">
-                    <h4 className="text-xl font-bold text-gray-200 border-l-2 border-[#827367] pl-4">Como o LingoSync ajuda você?</h4>
-                    <p className="text-gray-400 text-sm leading-relaxed">
-                      O LingoSync aplica a técnica de <b>Input Compreensivo</b>. Isso significa que você aprende inglês entendendo o contexto real do que ouve. Com legendas sincronizadas e o apoio do <b>LingoSync</b>, seu cérebro absorve o novo idioma de forma muito mais rápida e divertida.
-                    </p>
-                  </section>
 
-                  <section className="space-y-4">
-                    <h4 className="text-xl font-bold text-gray-200 border-l-2 border-[#827367] pl-4">Aprenda Editando: O Estudo Ativo</h4>
-                    <p className="text-gray-400 text-sm leading-relaxed">
-                      O <b>LingoSync</b> gera alguns segmentos com precisão na sincronização entre texto e áudio e outros precisam de refinamento manual no <b>Modo de Edição</b> para ajustar o tempo exato do áudio com o texto, o que tem <b>propósito pedagógico</b>. A ferramenta foi projetada para <b>estudo ativo</b> por meio de sua interação com as legendas inteligentes produzida nela, transformando a criação e estudo das lições em aprendizado real.
-                    </p>
-                  </section>
+                <ScrollArea className="h-[70vh] p-8">
+                  <div className="space-y-10 pb-10">
+                    <section className="space-y-4">
+                      <h4 className="text-xl font-bold text-gray-200 border-l-2 border-[#827367] pl-4">Como o LingoSync ajuda você?</h4>
+                      <p className="text-gray-400 text-sm leading-relaxed">
+                        O LingoSync aplica a técnica de <b>Input Compreensivo</b>. Isso significa que você aprende inglês entendendo o contexto real do que ouve. Com legendas sincronizadas e o apoio do <b>LingoSync</b>, seu cérebro absorve o novo idioma de forma muito mais rápida e divertida.
+                      </p>
+                    </section>
 
-                  <section className="space-y-6">
-                    <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Recursos para acelerar seu aprendizado</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
-                        <p className="text-sm font-bold text-gray-300">Transcrição Inteligente</p>
-                        <p className="text-[11px] text-gray-500">Basta subir seu áudio (MP3 ou WAV) e o <b>LingoSync</b> gera as legendas em inglês e português na hora para você.</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
-                        <p className="text-sm font-bold text-gray-300">Personalize sua Lição</p>
-                        <p className="text-[11px] text-gray-500">Clique em qualquer frase para ajustar o texto. Use o <b>Enter</b> para dividir uma frase longa em duas partes menores.</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
-                        <p className="text-sm font-bold text-gray-300">Sincronização Avançada</p>
-                        <p className="text-[11px] text-gray-500">O botão <b>Ajustar Tradução</b> utiliza a inteligência do <b>LingoSync</b> para alinhar sua edição perfeitamente.</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
-                        <p className="text-sm font-bold text-gray-300">Leve suas Lições com Você</p>
-                        <p className="text-[11px] text-gray-500">Exporte suas lições como arquivos <b>.lsync.json</b> e estude em qualquer outro dispositivo quando quiser.</p>
-                      </div>
-                    </div>
-                  </section>
+                    <section className="space-y-4">
+                      <h4 className="text-xl font-bold text-gray-200 border-l-2 border-[#827367] pl-4">Aprenda Editando: O Estudo Ativo</h4>
+                      <p className="text-gray-400 text-sm leading-relaxed">
+                        O <b>LingoSync</b> gera alguns segmentos com precisão na sincronização entre texto e áudio e outros precisam de refinamento manual no <b>Modo de Edição</b> para ajustar o tempo exato do áudio com o texto, o que tem <b>propósito pedagógico</b>. A ferramenta foi projetada para <b>estudo ativo</b> por meio de sua interação com as legendas inteligentes produzida nela, transformando a criação e estudo das lições em aprendizado real.
+                      </p>
+                    </section>
 
-                  <section className="p-6 rounded-2xl bg-[#827367]/5 border border-[#827367]/10 space-y-4">
-                    <div className="flex items-center space-x-3 text-[#827367]">
-                      <Key className="w-5 h-5" />
-                      <h4 className="font-bold">Poder e Controle Total no Seu Bolso</h4>
-                    </div>
-                    <p className="text-[13px] text-gray-300 leading-relaxed font-medium">
-                      Com o <b>LingoSync</b>, você é o dono da sua jornada. Diferente de outros apps com assinaturas caras, aqui você tem uma <b>ferramenta poderosa</b> sob seu comando absoluto.
-                    </p>
-                    <div className="space-y-3 bg-[#0d0d0d] p-4 rounded-xl border border-white/5">
-                      <p className="text-[12px] text-gray-400">
-                        <b>Economia Real:</b> Ao usar sua própria chave, você paga apenas pelo que consome. Transcrever <b>uma hora inteira de áudio</b> custa apenas <b>alguns centavos de dólar</b>.
-                      </p>
-                      <p className="text-[12px] text-gray-400">
-                        <b>Segurança Financeira:</b> No painel do Google, você pode definir um <b>limite mensal</b> (como $1 ou $5 dólares). Assim, você aproveita o <b>LingoSync</b> com total previsibilidade.
-                      </p>
-                    </div>
-                    <p className="text-[12px] text-gray-400 leading-relaxed">
-                      Essa solução foi desenvolvida para revolucionar o custo-benefício no aprendizado de idiomas. Tudo é transparente para sua tranquilidade e satisfação em primeiro lugar. Ah, o <b>LingoSync</b> processa tudo de forma <b>local</b> e seus áudios nunca saem do seu <b>dispositivo</b>.
-                    </p>
-                  </section>
+                    <section className="space-y-6">
+                      <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Recursos para acelerar seu aprendizado</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
+                          <p className="text-sm font-bold text-gray-300">Transcrição Inteligente</p>
+                          <p className="text-[11px] text-gray-500">Basta subir seu áudio (MP3 ou WAV) e o <b>LingoSync</b> gera as legendas em inglês e português na hora para você.</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
+                          <p className="text-sm font-bold text-gray-300">Personalize sua Lição</p>
+                          <p className="text-[11px] text-gray-500">Clique em qualquer frase para ajustar o texto. Use o <b>Enter</b> para dividir uma frase longa em duas partes menores.</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
+                          <p className="text-sm font-bold text-gray-300">Sincronização Avançada</p>
+                          <p className="text-[11px] text-gray-500">O botão <b>Ajustar Tradução</b> utiliza a inteligência do <b>LingoSync</b> para alinhar sua edição perfeitamente.</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
+                          <p className="text-sm font-bold text-gray-300">Leve suas Lições com Você</p>
+                          <p className="text-[11px] text-gray-500">Exporte suas lições como arquivos <b>.lsync.json</b> e estude em qualquer outro dispositivo quando quiser.</p>
+                        </div>
+                      </div>
+                    </section>
 
-                  <section className="space-y-4 pt-4 border-t border-white/5">
-                    <div className="flex items-center space-x-3 text-gray-400">
-                      <Shield className="w-5 h-5" />
-                      <h4 className="font-bold">Termos e Privacidade</h4>
-                    </div>
-                    <div className="space-y-4 text-[11px] text-gray-500 leading-relaxed">
-                      <p>
-                        <b>1. Uso do Serviço:</b> O <b>LingoSync</b> é uma ferramenta de auxílio ao estudo de idiomas. Ao utilizá-lo, você concorda com o processamento <b>local</b> de seus dados para fins educacionais.
+                    <section className="p-6 rounded-2xl bg-[#827367]/5 border border-[#827367]/10 space-y-4">
+                      <div className="flex items-center space-x-3 text-[#827367]">
+                        <Key className="w-5 h-5" />
+                        <h4 className="font-bold">Poder e Controle Total no Seu Bolso</h4>
+                      </div>
+                      <p className="text-[13px] text-gray-300 leading-relaxed font-medium">
+                        Com o <b>LingoSync</b>, você é o dono da sua jornada. Diferente de outros apps com assinaturas caras, aqui você tem uma <b>ferramenta poderosa</b> sob seu comando absoluto.
                       </p>
-                      <p>
-                        <b>2. Privacidade de Dados:</b> Temos um compromisso rigoroso com a transparência. Seus arquivos de áudio e transcrições <b>não são enviados para nossos servidores</b>. Tudo é armazenado no banco de dados do seu próprio <b>dispositivo</b> (IndexedDB).
+                      <div className="space-y-3 bg-[#0d0d0d] p-4 rounded-xl border border-white/5">
+                        <p className="text-[12px] text-gray-400">
+                          <b>Economia Real:</b> Ao usar sua própria chave, você paga apenas pelo que consome. Transcrever <b>uma hora inteira de áudio</b> custa apenas <b>alguns centavos de dólar</b>.
+                        </p>
+                        <p className="text-[12px] text-gray-400">
+                          <b>Segurança Financeira:</b> No painel do Google, você pode definir um <b>limite mensal</b> (como $1 ou $5 dólares). Assim, você aproveita o <b>LingoSync</b> com total previsibilidade.
+                        </p>
+                      </div>
+                      <p className="text-[12px] text-gray-400 leading-relaxed">
+                        Essa solução foi desenvolvida para revolucionar o custo-benefício no aprendizado de idiomas. Tudo é transparente para sua tranquilidade e satisfação em primeiro lugar. Ah, o <b>LingoSync</b> processa tudo de forma <b>local</b> e seus áudios nunca saem do seu <b>dispositivo</b>.
                       </p>
-                      <p>
-                        <b>3. Segurança da API:</b> A <b>Gemini API Key</b> que você insere fica guardada de forma segura apenas no seu navegador. O <b>LingoSync</b> nunca compartilha sua chave com terceiros, utilizando-a exclusivamente para a comunicação direta entre seu dispositivo e o Google.
-                      </p>
-                      <p>
-                        <b>4. Futuras Atualizações:</b> O <b>LingoSync</b> é disponibilizado hoje de forma gratuita para aprimorar sua experiência. O desenvolvedor reserva-se o direito de, futuramente, oferecer a ferramenta em lojas oficiais (como Google Play) sob a modalidade de <b>pagamento único</b>, como reconhecimento pelo valor e desenvolvimento desta ferramenta.
-                      </p>
-                      <p>
-                        <b>5. Uso Legal de Conteúdos:</b> Ao utilizar o <b>LingoSync</b>, você concorda em carregar apenas arquivos de áudio (e vídeos) que você obteve de forma legal e para os quais possui direitos de uso, reprodução e modificação para fins educacionais pessoais. O <b>LingoSync</b> não deve ser utilizado com conteúdos protegidos por direitos autorais sem a devida autorização dos titulares dos direitos.
-                      </p>
-                      <p>
-                        <b>6. Isenção de Responsabilidade:</b> Esta ferramenta é fornecida "como está". O desenvolvedor não se responsabiliza por eventuais custos gerados na sua conta do Google AI Studio, nem por quaisquer questões relacionadas a violações de direitos autorais ou uso indevido de conteúdos carregados pelo usuário. Qualquer responsabilidade decorrente do uso do <b>LingoSync</b> é exclusiva do usuário.
-                      </p>
-                      <p>
-                        <b>7. Dados no Google Gemini (Importante):</b> Ao usar o <b>LingoSync</b> com sua chave do Google AI Studio, você concorda que os dados enviados ao Gemini (áudios transcritos, textos traduzidos e outros conteúdos) <b>podem ser lidos por revisores humanos do Google para melhorar e treinar modelos de IA</b>. Isso faz parte da política de privacidade do plano gratuito do AI Studio. Para fins educacionais pessoais, considere usar conteúdo público ou de domínio público.
-                      </p>
-                    </div>
-                  </section>
-                </div>
-              </ScrollArea>
+                    </section>
+
+                    <section className="space-y-4 pt-4 border-t border-white/5">
+                      <div className="flex items-center space-x-3 text-gray-400">
+                        <Shield className="w-5 h-5" />
+                        <h4 className="font-bold">Termos e Privacidade</h4>
+                      </div>
+                      <div className="space-y-4 text-[11px] text-gray-500 leading-relaxed">
+                        <p>
+                          <b>1. Uso do Serviço:</b> O <b>LingoSync</b> é uma ferramenta de auxílio ao estudo de idiomas. Ao utilizá-lo, você concorda com o processamento <b>local</b> de seus dados para fins educacionais.
+                        </p>
+                        <p>
+                          <b>2. Privacidade de Dados:</b> Temos um compromisso rigoroso com a transparência. Seus arquivos de áudio e transcrições <b>não são enviados para nossos servidores</b>. Tudo é armazenado no banco de dados do seu próprio <b>dispositivo</b> (IndexedDB).
+                        </p>
+                        <p>
+                          <b>3. Segurança da API:</b> A <b>Gemini API Key</b> que você insere fica guardada de forma segura apenas no seu navegador. O <b>LingoSync</b> nunca compartilha sua chave com terceiros, utilizando-a exclusivamente para a comunicação direta entre seu dispositivo e o Google.
+                        </p>
+                        <p>
+                          <b>4. Futuras Atualizações:</b> O <b>LingoSync</b> é disponibilizado hoje de forma gratuita para aprimorar sua experiência. O desenvolvedor reserva-se o direito de, futuramente, oferecer a ferramenta em lojas oficiais (como Google Play) sob a modalidade de <b>pagamento único</b>, como reconhecimento pelo valor e desenvolvimento desta ferramenta.
+                        </p>
+                        <p>
+                          <b>5. Uso Legal de Conteúdos:</b> Ao utilizar o <b>LingoSync</b>, você concorda em carregar apenas arquivos de áudio (e vídeos) que você obteve de forma legal e para os quais possui direitos de uso, reprodução e modificação para fins educacionais pessoais. O <b>LingoSync</b> não deve ser utilizado com conteúdos protegidos por direitos autorais sem a devida autorização dos titulares dos direitos.
+                        </p>
+                        <p>
+                          <b>6. Isenção de Responsabilidade:</b> Esta ferramenta é fornecida "como está". O desenvolvedor não se responsabiliza por eventuais custos gerados na sua conta do Google AI Studio, nem por quaisquer questões relacionadas a violações de direitos autorais ou uso indevido de conteúdos carregados pelo usuário. Qualquer responsabilidade decorrente do uso do <b>LingoSync</b> é exclusiva do usuário.
+                        </p>
+                        <p>
+                          <b>7. Dados no Google Gemini (Importante):</b> Ao usar o <b>LingoSync</b> com sua chave do Google AI Studio, você concorda que os dados enviados ao Gemini (áudios transcritos, textos traduzidos e outros conteúdos) <b>podem ser lidos por revisores humanos do Google para melhorar e treinar modelos de IA</b>. Isso faz parte da política de privacidade do plano gratuito do AI Studio. Para fins educacionais pessoais, considere usar conteúdo público ou de domínio público.
+                        </p>
+                      </div>
+                    </section>
+                  </div>
+                </ScrollArea>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-        {showKeyAlert && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
-            onClick={() => setShowKeyAlert(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-sm bg-[#161616] border border-[#827367]/30 rounded-3xl overflow-hidden shadow-2xl relative"
-              onClick={e => e.stopPropagation()}
+          )}
+          {showKeyAlert && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+              onClick={() => setShowKeyAlert(false)}
             >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#827367]/50 to-transparent" />
-              <div className="p-8 text-center space-y-6">
-                <div className="w-16 h-16 bg-[#827367]/10 rounded-2xl flex items-center justify-center mx-auto border border-[#827367]/20">
-                  <Key className="w-8 h-8 text-[#827367]" />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                className="w-full max-w-sm bg-[#161616] border border-[#827367]/30 rounded-3xl overflow-hidden shadow-2xl relative"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#827367]/50 to-transparent" />
+                <div className="p-8 text-center space-y-6">
+                  <div className="w-16 h-16 bg-[#827367]/10 rounded-2xl flex items-center justify-center mx-auto border border-[#827367]/20">
+                    <Key className="w-8 h-8 text-[#827367]" />
+                  </div>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-bold text-gray-200">Chave API do Google necessária</h3>
+                      <p className="text-[10px] text-gray-500 leading-relaxed font-medium">
+                        Ao criar sua API, o plano gratuito é ativado por padrão. Para uso além do limite gratuito diário, o Google solicitará a configuração de um método de pagamento.
+                      </p>
+                      <p className="text-[11px] text-[#827367] leading-relaxed uppercase tracking-widest font-bold pt-1">Tutorial rápido em 3 passos:</p>
+                    </div>
+
+                    <div className="text-left space-y-3">
+                      <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
+                        <p className="text-[12px] text-gray-400 leading-tight">Acesse o <b>Google AI Studio</b> através do link abaixo ou nas configurações.</p>
+                      </div>
+                      <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
+                        <p className="text-[12px] text-gray-400 leading-tight">Escolha <b>"Create API key in new project"</b>. Ignore opções como "projeto importado" para ser mais rápido.</p>
+                      </div>
+                      <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</div>
+                        <p className="text-[12px] text-gray-400 leading-tight">Clique em <b>"Configurar Chave"</b> e cole o código no campo de senha.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col space-y-3">
+                    <Button
+                      onClick={() => {
+                        setShowKeyAlert(false);
+                        setShowSettings(true);
+                      }}
+                      className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-200 font-bold uppercase tracking-widest h-12 rounded-xl"
+                    >
+                      Configurar Chave Agora
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setShowKeyAlert(false)}
+                      className="text-gray-600 hover:text-gray-400 text-[10px] font-bold uppercase tracking-widest"
+                    >
+                      Ignorar por enquanto
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-gray-200">Chave API do Google necessária</h3>
-                    <p className="text-[10px] text-gray-500 leading-relaxed font-medium">
-                      Ao criar sua API, o plano gratuito é ativado por padrão. Para uso além do limite gratuito diário, o Google solicitará a configuração de um método de pagamento.
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <QuotaExceededModal
+          isOpen={showQuotaModal}
+          onClose={() => setShowQuotaModal(false)}
+        />
+
+        <AnimatePresence>
+          {showAudioErrorModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+              onClick={() => setShowAudioErrorModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                className="w-full max-w-sm bg-[#161616] border border-[#827367]/30 rounded-3xl overflow-hidden shadow-2xl relative"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#827367]/50 to-transparent" />
+                <div className="p-8 text-center space-y-6">
+                  <div className="w-16 h-16 bg-[#827367]/10 rounded-2xl flex items-center justify-center mx-auto border border-[#827367]/20">
+                    <AudioLines className="w-8 h-8 text-[#827367]" />
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-gray-200">Falha ao gerar som do flashcard</h3>
+                    <p className="text-[12px] text-gray-400 leading-relaxed">
+                      {audioErrorMessage || "Não foi possível gerar a pronúncia desta palavra no momento."}
                     </p>
-                    <p className="text-[11px] text-[#827367] leading-relaxed uppercase tracking-widest font-bold pt-1">Tutorial rápido em 3 passos:</p>
                   </div>
-                  
-                  <div className="text-left space-y-3">
-                    <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                      <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
-                      <p className="text-[12px] text-gray-400 leading-tight">Acesse o <b>Google AI Studio</b> através do link abaixo ou nas configurações.</p>
-                    </div>
-                    <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                      <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
-                      <p className="text-[12px] text-gray-400 leading-tight">Escolha <b>"Create API key in new project"</b>. Ignore opções como "projeto importado" para ser mais rápido.</p>
-                    </div>
-                    <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                      <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</div>
-                      <p className="text-[12px] text-gray-400 leading-tight">Clique em <b>"Configurar Chave"</b> e cole o código no campo de senha.</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-col space-y-3">
-                  <Button 
-                    onClick={() => {
-                      setShowKeyAlert(false);
-                      setShowSettings(true);
-                    }}
+                  <Button
+                    onClick={() => setShowAudioErrorModal(false)}
                     className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-200 font-bold uppercase tracking-widest h-12 rounded-xl"
                   >
-                    Configurar Chave Agora
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    onClick={() => setShowKeyAlert(false)}
-                    className="text-gray-600 hover:text-gray-400 text-[10px] font-bold uppercase tracking-widest"
-                  >
-                    Ignorar por enquanto
+                    Entendi
                   </Button>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <QuotaExceededModal 
-        isOpen={showQuotaModal} 
-        onClose={() => setShowQuotaModal(false)} 
-      />
+          )}
+        </AnimatePresence>
 
-      <AnimatePresence>
-        {showAudioErrorModal && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
-            onClick={() => setShowAudioErrorModal(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-sm bg-[#161616] border border-[#827367]/30 rounded-3xl overflow-hidden shadow-2xl relative"
-              onClick={e => e.stopPropagation()}
+        {/* Missing Audio Modal */}
+        <AnimatePresence>
+          {showMissingAudioModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl"
             >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#827367]/50 to-transparent" />
-              <div className="p-8 text-center space-y-6">
-                <div className="w-16 h-16 bg-[#827367]/10 rounded-2xl flex items-center justify-center mx-auto border border-[#827367]/20">
-                  <AudioLines className="w-8 h-8 text-[#827367]" />
-                </div>
-                <div className="space-y-4">
-                  <h3 className="text-xl font-bold text-gray-200">Falha ao gerar som do flashcard</h3>
-                  <p className="text-[12px] text-gray-400 leading-relaxed">
-                    {audioErrorMessage || "Não foi possível gerar a pronúncia desta palavra no momento."}
-                  </p>
-                </div>
-                <Button 
-                  onClick={() => setShowAudioErrorModal(false)}
-                  className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-200 font-bold uppercase tracking-widest h-12 rounded-xl"
-                >
-                  Entendi
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Missing Audio Modal */}
-      <AnimatePresence>
-        {showMissingAudioModal && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-sm bg-[#161616] border border-[#827367]/30 rounded-3xl overflow-hidden shadow-2xl relative"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#827367]/50 to-transparent" />
-              <div className="p-8 text-center space-y-6">
-                <div className="w-16 h-16 bg-[#827367]/10 rounded-2xl flex items-center justify-center mx-auto border border-[#827367]/20">
-                  <AudioLines className="w-8 h-8 text-[#827367]" />
-                </div>
-                <div className="space-y-4">
-                  <h3 className="text-xl font-bold text-gray-200">Áudio não encontrado</h3>
-                  <div className="text-left space-y-3">
-                    <p className="text-[12px] text-gray-400 leading-relaxed">
-                      Não conseguimos localizar o áudio original desta lição. Isso pode acontecer se o arquivo foi <b>renomeado</b>, <b>movido</b> ou <b>excluído</b> do seu dispositivo.
-                    </p>
-                    <div className="p-4 rounded-2xl bg-[#827367]/5 border border-[#827367]/10 space-y-3">
-                      <p className="text-[11px] text-[#a39487] font-medium">
-                        Para ouvir o áudio, selecione a pasta onde o arquivo <b>{currentTrack?.audioFileName || "original"}</b> está localizado.
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                className="w-full max-w-sm bg-[#161616] border border-[#827367]/30 rounded-3xl overflow-hidden shadow-2xl relative"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#827367]/50 to-transparent" />
+                <div className="p-8 text-center space-y-6">
+                  <div className="w-16 h-16 bg-[#827367]/10 rounded-2xl flex items-center justify-center mx-auto border border-[#827367]/20">
+                    <AudioLines className="w-8 h-8 text-[#827367]" />
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-gray-200">Áudio não encontrado</h3>
+                    <div className="text-left space-y-3">
+                      <p className="text-[12px] text-gray-400 leading-relaxed">
+                        Não conseguimos localizar o áudio original desta lição. Isso pode acontecer se o arquivo foi <b>renomeado</b>, <b>movido</b> ou <b>excluído</b> do seu dispositivo.
                       </p>
-                      <Button 
-                        onClick={() => {
-                          const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-                          const canUseDirectoryPicker = !isSafari && 'showDirectoryPicker' in window;
-                          if (canUseDirectoryPicker) {
-                            handleSyncAudioFolder();
-                          } else {
-                            folderInputRef.current?.click();
-                          }
-                        }}
-                        disabled={isSyncingAudio}
-                        className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-100 font-bold uppercase tracking-widest text-[10px] h-10 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-lg shadow-[#827367]/10"
-                      >
-                        {isSyncingAudio ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <span>Buscando... {syncProgress}%</span>
-                          </>
-                        ) : (
-                          <>
-                            <RotateCw className="w-3.5 h-3.5" />
-                            <span>Sincronizar Áudio</span>
-                          </>
-                        )}
-                      </Button>
-                      {isSyncingAudio && (
-                        <div className="mt-3">
-                          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                            <div className="h-full bg-[#827367] transition-all duration-200" style={{ width: `${syncProgress}%` }} />
+                      <div className="p-4 rounded-2xl bg-[#827367]/5 border border-[#827367]/10 space-y-3">
+                        <p className="text-[11px] text-[#a39487] font-medium">
+                          Para ouvir o áudio, selecione a pasta onde o arquivo <b>{currentTrack?.audioFileName || "original"}</b> está localizado.
+                        </p>
+                        <Button
+                          onClick={() => {
+                            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                            const canUseDirectoryPicker = !isSafari && 'showDirectoryPicker' in window;
+                            if (canUseDirectoryPicker) {
+                              handleSyncAudioFolder();
+                            } else {
+                              folderInputRef.current?.click();
+                            }
+                          }}
+                          disabled={isSyncingAudio}
+                          className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-100 font-bold uppercase tracking-widest text-[10px] h-10 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-lg shadow-[#827367]/10"
+                        >
+                          {isSyncingAudio ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Buscando... {syncProgress}%</span>
+                            </>
+                          ) : (
+                            <>
+                              <RotateCw className="w-3.5 h-3.5" />
+                              <span>Sincronizar Áudio</span>
+                            </>
+                          )}
+                        </Button>
+                        {isSyncingAudio && (
+                          <div className="mt-3">
+                            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                              <div className="h-full bg-[#827367] transition-all duration-200" style={{ width: `${syncProgress}%` }} />
+                            </div>
+                            <p className="text-[11px] text-gray-400 uppercase tracking-[0.2em] mt-2">
+                              {syncProgress}% concluído
+                            </p>
                           </div>
-                          <p className="text-[11px] text-gray-400 uppercase tracking-[0.2em] mt-2">
-                            {syncProgress}% concluído
-                          </p>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
+                  <button
+                    onClick={() => {
+                      setShowMissingAudioModal(false);
+                      setCurrentView('library');
+                    }}
+                    className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    Biblioteca
+                  </button>
                 </div>
-                <button 
-                  onClick={() => {
-                    setShowMissingAudioModal(false);
-                    setCurrentView('library');
-                  }}
-                  className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors"
-                >
-                  Biblioteca
-                </button>
-              </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* Rate Limit Modal */}
-      <RateLimitModal 
-        isVisible={isRateLimited}
-        secondsRemaining={rateLimitSecondsRemaining}
-        model={rateLimitModel}
-        isDailyLimit={isRateLimitDaily}
-      />
-    </div>
+        {/* Rate Limit Modal */}
+        <RateLimitModal
+          isVisible={isRateLimited}
+          secondsRemaining={rateLimitSecondsRemaining}
+          model={rateLimitModel}
+          isDailyLimit={isRateLimitDaily}
+        />
+      </div>
     </>
   );
 }
