@@ -11,6 +11,7 @@ export interface Flashcard {
   explanation: string;
   audioUrl?: string;
   audioBase64?: string;
+  audioVoiceId?: string;
 }
 
 export interface TranscriptSegment {

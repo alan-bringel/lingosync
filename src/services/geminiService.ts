@@ -16,6 +16,20 @@ function getAI(customApiKey?: string) {
   });
 }
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  de: 'German',
+  fr: 'French',
+  el: 'Greek',
+  he: 'Hebrew',
+  pt: 'Portuguese'
+};
+
+function getLanguageName(code: string): string {
+  return LANGUAGE_NAMES[code] || 'Portuguese';
+}
+
 export interface SplitTranslationResult {
   translationA: string;
   translationB: string;
@@ -24,20 +38,22 @@ export interface SplitTranslationResult {
   originalTranslation: string,
   englishA: string,
   englishB: string,
+  nativeLanguage: string,
   customApiKey?: string,
   hasBillingEnabled?: boolean
 ): Promise<SplitTranslationResult> {
   const apiKey = customApiKey || localStorage.getItem("deepseek_api_key") || "";
 
   try {
-    const prompt = `Split this Portuguese translation into two parts to match the English.
+    const langName = getLanguageName(nativeLanguage);
+    const prompt = `Split this ${langName} translation into two parts to match the English.
 Original English: "${originalEnglish}"
 Original Translation: "${originalTranslation}"
 Part 1 English: "${englishA}"
 Part 2 English: "${englishB}"
 
 CRITICAL: Return ONLY a MINIFIED JSON object: { "translationA": string, "translationB": string }. 
-Mirror punctuation. Ensure natural Portuguese flow in both parts.`;
+Mirror punctuation. Ensure natural ${langName} flow in both parts.`;
 
     const resultText = await callDeepSeekChat(
       [{ role: "user", content: prompt }],
@@ -93,17 +109,19 @@ export async function smartAlignSegmentTranslation(
   englishText: string,
   currentTranslation: string,
   wholeEnglishTranscript: string,
+  nativeLanguage: string,
   customApiKey?: string,
   hasBillingEnabled?: boolean
 ): Promise<string> {
   const apiKey = customApiKey || localStorage.getItem("deepseek_api_key") || "";
 
   try {
+    const langName = getLanguageName(nativeLanguage);
     const prompt = `Refine translation for this edited segment. Match tone/context.
 English: "${englishText}"
 Current: "${currentTranslation}"
 Context: "${wholeEnglishTranscript.slice(0, 1000)}"
-CRITICAL: Use natural, idiomatic Portuguese. Mirror punctuation exactly. Return ONLY the translation string.`;
+CRITICAL: Use natural, idiomatic ${langName}. Mirror punctuation exactly. Return ONLY the translation string.`;
 
     const resultText = await callDeepSeekChat(
       [{ role: "user", content: prompt }],
@@ -120,6 +138,7 @@ CRITICAL: Use natural, idiomatic Portuguese. Mirror punctuation exactly. Return 
 
 export async function extractLessonFlashcards(
   fullTranscript: string,
+  nativeLanguage: string,
   customApiKey?: string,
   hasBillingEnabled?: boolean
 ): Promise<Flashcard[]> {
@@ -147,6 +166,7 @@ export async function extractLessonFlashcards(
   const wordsList = wordsArray.join(', ');
 
   try {
+    const langName = getLanguageName(nativeLanguage);
     const prompt = `Create a glossary for these English words based on the context.
 Context: "${fullTranscript.slice(0, 2000)}"
 Words: ${wordsList}
@@ -155,7 +175,9 @@ Rules:
 - explain apostrophes (possession vs contraction).
 - Proper nouns capitalized (Jesus, God, Lord, etc).
 - Others lowercase.
-- Translation: Use natural, common Portuguese terms.
+- Translation: Use natural, common ${langName} terms.
+- Explanation: Provide a brief explanation in ${langName} about usage, grammar or context.
+- CRITICAL: Always use proper UTF-8 encoding and CORRECT ACCENTUATION (e.g., "através" NOT "atrav1s").
 - Return MINIFIED JSON array: expression, translation, explanation.`;
 
     const resultText = await callDeepSeekChat(
@@ -382,49 +404,50 @@ export function isQuotaError(error: any): boolean {
 }
 
 async function requestTtsAudio(
-  ai: ReturnType<typeof getAI>,
-  promptText: string,
+  text: string,
   voiceName: string
 ): Promise<string | undefined> {
-  console.log("requestTtsAudio called with:", { promptText, voiceName });
+  const workerUrl = localStorage.getItem("lingosync_tts_worker_url") || "";
+  const googleCloudApiKey = localStorage.getItem("lingosync_google_cloud_api_key") || "";
+  
+  if (!workerUrl && !googleCloudApiKey) {
+    console.warn("Nenhuma configuração de TTS encontrada (Worker URL ou API Key).");
+    throw new Error("TTS_CONFIG_MISSING");
+  }
+
+  console.log("requestTtsAudio called with:", { text, voiceName, mode: workerUrl ? "Worker" : "Direct" });
   
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_TTS_MODEL,
-      contents: [{ parts: [{ text: promptText }] }],
-      config: {
-        responseModalities: ["AUDIO"],
-        safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        ],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName },
+    const url = workerUrl || `https://texttospeech.googleapis.com/v1/text:synthesize?key=${googleCloudApiKey}`;
+    
+    const body = workerUrl 
+      ? { text, voice: voiceName, languageCode: voiceName.substring(0, 5) }
+      : {
+          input: { text },
+          voice: {
+            languageCode: voiceName.substring(0, 5),
+            name: voiceName
           },
-        },
+          audioConfig: {
+            audioEncoding: "MP3"
+          }
+        };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify(body),
     });
 
-    console.log("requestTtsAudio full response:", JSON.stringify(response, null, 2));
-
-    const candidate = response.candidates?.[0];
-    const parts = candidate?.content?.parts || [];
-    
-    console.log("requestTtsAudio parts:", parts);
-
-    for (const part of parts) {
-      console.log("requestTtsAudio part:", part);
-      if (part.inlineData?.data) {
-        console.log("requestTtsAudio found inlineData.data, length:", part.inlineData.data.length);
-        return part.inlineData.data;
-      }
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || errorData.error || `HTTP error! status: ${response.status}`);
     }
 
-    console.warn("requestTtsAudio: No inlineData.data found in parts");
-    return undefined;
+    const data = await response.json();
+    return data.audioContent;
   } catch (error) {
     console.error("requestTtsAudio error:", error);
     throw error;
@@ -433,85 +456,56 @@ async function requestTtsAudio(
 
 export async function generateExpressionAudio(
   text: string,
-  customApiKey?: string,
-  voiceName: string = 'Aoede',
-  hasBillingEnabled?: boolean
+  voiceName: string = 'en-US-Neural2-A'
 ): Promise<string> {
-  console.log("generateExpressionAudio called with:", { text, voiceName, hasBillingEnabled });
-  
-  return withRateLimit(
-    {
-      model: GEMINI_TTS_MODEL,
-      apiKey: customApiKey || "",
-      operationName: "Geração de Áudio TTS",
-      hasBillingEnabled,
-    },
-    async () => {
-      const ai = getAI(customApiKey);
-      try {
-        // Sanitize text: remove dashes, unusual quotes, and excessive whitespace
-        const cleaned = text
-          .replace(/[–—""'']/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-          
-        if (!cleaned) throw new Error("O texto para narração está vazio.");
+  try {
+    // Sanitize text: remove dashes, unusual quotes, and excessive whitespace
+    const cleaned = text
+      .replace(/[–—""'']/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+      
+    if (!cleaned) throw new Error("O texto para narração está vazio.");
 
-        const safeText = cleaned.charAt(0).toUpperCase() + cleaned.slice(1) + (cleaned.match(/[.?!]$/) ? "" : ".");
-        const isSingleWord = cleaned.split(/\s+/).length === 1;
+    const safeText = cleaned.charAt(0).toUpperCase() + cleaned.slice(1) + (cleaned.match(/[.?!]$/) ? "" : ".");
+    
+    console.log("generateExpressionAudio text:", safeText);
+    const base64Audio = await requestTtsAudio(safeText, voiceName);
 
-        const primaryPrompt = isSingleWord
-          ? `Por favor, pronuncie claramente a palavra inglesa: "${cleaned}".`
-          : `Por favor, pronuncie claramente o texto em inglês a seguir: "${safeText}".`;
-
-        console.log("generateExpressionAudio primary prompt:", primaryPrompt);
-        let base64Audio = await requestTtsAudio(ai, primaryPrompt, voiceName);
-
-        if (!base64Audio && isSingleWord) {
-          const alternatePrompt = `Diga apenas esta palavra em inglês de forma clara: "${cleaned}".`;
-          console.log("generateExpressionAudio alternate prompt:", alternatePrompt);
-          base64Audio = await requestTtsAudio(ai, alternatePrompt, voiceName);
+    if (base64Audio) {
+      // Check for silent audio (all zeros)
+      const binaryStr = atob(base64Audio);
+      const bytes = new Uint8Array(binaryStr.length);
+      let allZeros = true;
+      for (let i = 0; i < binaryStr.length; i++) {
+        const b = binaryStr.charCodeAt(i);
+        bytes[i] = b;
+        if (b !== 0) {
+          allZeros = false;
+          break;
         }
-
-        if (base64Audio) {
-          // Check for silent audio (all zeros)
-          const binaryStr = atob(base64Audio);
-          const bytes = new Uint8Array(binaryStr.length);
-          let allZeros = true;
-          for (let i = 0; i < binaryStr.length; i++) {
-            const b = binaryStr.charCodeAt(i);
-            bytes[i] = b;
-            if (b !== 0) {
-              allZeros = false;
-              break;
-            }
-          }
-
-          if (allZeros) {
-            console.error("Gemini returned silent audio (all zeros).");
-            throw new Error("A narração gerada está silenciosa. Tente novamente.");
-          }
-
-          console.log("generateExpressionAudio returning base64Audio, length:", base64Audio.length);
-          return base64Audio;
-        }
-
-        console.error("No audio returned for Gemini TTS. Prompt:", primaryPrompt);
-        throw new Error("Não foi possível gerar o áudio da narração.");
-      } catch (error: any) {
-        console.error("Error generating audio with Gemini TTS:", error);
-        if (isQuotaError(error)) {
-          throw new Error("QUOTA_EXCEEDED");
-        }
-        throw error;
       }
+
+      if (allZeros) {
+        console.error("Worker returned silent audio (all zeros).");
+        throw new Error("A narração gerada está silenciosa. Tente novamente.");
+      }
+
+      console.log("generateExpressionAudio returning base64Audio, length:", base64Audio.length);
+      return base64Audio;
     }
-  );
+
+    throw new Error("Não foi possível gerar o áudio da narração.");
+  } catch (error: any) {
+    console.error("Error generating audio with TTS Worker:", error);
+    throw error;
+  }
 }
 
 export async function generateLessonSegments(
   title: string,
   text: string,
+  nativeLanguage: string,
   customApiKey?: string,
   hasBillingEnabled?: boolean
 ): Promise<{ text: string, translation: string }[]> {
@@ -524,13 +518,14 @@ export async function generateLessonSegments(
     },
     async () => {
       const ai = getAI(customApiKey);
+      const langName = getLanguageName(nativeLanguage);
       const prompt = `
     Break the following text into logical segments for a lesson. 
     Prioritize natural pauses, punctuation, conjunctions, and clauses to make the segments flow well and make sense. 
     Segments should be a good size for learning—not too short and not excessively long.
-    For each segment, provide the English text and its corresponding Portuguese translation.
+    For each segment, provide the English text and its corresponding ${langName} translation.
     
-    CRITICAL: Mirror the punctuation of the English text EXACTLY in the Portuguese translation for each segment.
+    CRITICAL: Mirror the punctuation of the English text EXACTLY in the ${langName} translation for each segment.
     
     Text: "${text}"
     

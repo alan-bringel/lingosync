@@ -7,7 +7,7 @@ const ScrollArea = ({ children, className }: any) => <div className={className} 
 // import { Badge } from "@/components/ui/badge";
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
-import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown } from "lucide-react";
+import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2 } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
 import { motion, AnimatePresence, useMotionValue } from "motion/react";
@@ -49,7 +49,7 @@ const LingoSyncLogo = ({ className = "w-8 h-8" }: { className?: string }) => (
   />
 );
 
-function LanguageSelector({ currentLanguage, onLanguageChange }: { currentLanguage: string, onLanguageChange: (code: string) => void }) {
+function LanguageSelector({ currentLanguage, onLanguageChange, exclude }: { currentLanguage: string, onLanguageChange: (code: string) => void, exclude?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedLang = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage) || SUPPORTED_LANGUAGES[0];
@@ -82,7 +82,7 @@ function LanguageSelector({ currentLanguage, onLanguageChange }: { currentLangua
             exit={{ opacity: 0, y: 10 }}
             className="absolute left-0 top-full mt-2 z-[100] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-1 min-w-[80px] overflow-hidden"
           >
-            {SUPPORTED_LANGUAGES.map((lang) => (
+            {SUPPORTED_LANGUAGES.filter(l => l.code !== exclude).map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => {
@@ -220,6 +220,13 @@ export default function App() {
     return 'en';
   });
 
+  const [nativeLanguage, setNativeLanguage] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem('lingosync_native_language') || 'pt';
+    }
+    return 'pt';
+  });
+
   useEffect(() => {
     localStorage.setItem('lingosync_current_view', currentView);
     // Stop audio when leaving the lesson view
@@ -241,6 +248,32 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('lingosync_current_language', currentLanguage);
   }, [currentLanguage]);
+
+  useEffect(() => {
+    localStorage.setItem('lingosync_native_language', nativeLanguage);
+  }, [nativeLanguage]);
+
+  const [ttsWorkerUrl, setTtsWorkerUrl] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem('lingosync_tts_worker_url') || '';
+    }
+    return '';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('lingosync_tts_worker_url', ttsWorkerUrl);
+  }, [ttsWorkerUrl]);
+
+  const [googleCloudApiKey, setGoogleCloudApiKey] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem('lingosync_google_cloud_api_key') || '';
+    }
+    return '';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('lingosync_google_cloud_api_key', googleCloudApiKey);
+  }, [googleCloudApiKey]);
 
   const [isImporting, setIsImporting] = useState(false);
   const [globalKnownWords, setGlobalKnownWords] = useState<string[]>([]);
@@ -436,6 +469,9 @@ export default function App() {
   const [transcribePercent, setTranscribePercent] = useState(0);
   const [flashcardPercent, setFlashcardPercent] = useState(0);
 
+  const [returnSegmentIndex, setReturnSegmentIndex] = useState<number | null>(null);
+  const [externalJumpToSegmentIndex, setExternalJumpToSegmentIndex] = useState<number | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -453,10 +489,11 @@ export default function App() {
     }
   }, [showFlashcards]);
 
-  const handleOpenFlashcards = async (startIndex: number = 0) => {
+  const handleOpenFlashcards = async (startIndex: number = 0, segmentIndex?: number) => {
     if (!currentTrack) return;
 
     // Set the starting index
+    setReturnSegmentIndex(segmentIndex ?? null);
     setFlashcardStartIndex(startIndex);
 
     if (currentTrack.flashcards && currentTrack.flashcards.length > 0) {
@@ -474,7 +511,7 @@ export default function App() {
     try {
       const { extractLessonFlashcards } = await import("./services/geminiService");
       const fullTranscript = currentTrack.transcript.map(s => s.text).join(" ");
-      const cards = await extractLessonFlashcards(fullTranscript, deepseekApiKey, hasBillingEnabled);
+      const cards = await extractLessonFlashcards(fullTranscript, nativeLanguage, deepseekApiKey, hasBillingEnabled);
       handleUpdateTrack({ flashcards: cards });
       setShowFlashcards(true);
     } catch (err: any) {
@@ -889,12 +926,13 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const effectiveAssemblyKey = (assemblyAiApiKey || localStorage.getItem("assemblyai_api_key") || "").trim();
-    const effectiveDeepseekKey = (deepseekApiKey || localStorage.getItem("deepseek_api_key") || "").trim();
-    const effectiveGeminiKey = (userApiKey || localStorage.getItem("gemini_api_key") || "").trim();
+    const effectiveAssemblyKey = (assemblyAiApiKey || localStorage.getItem("lingosync_assemblyai_api_key") || "").trim();
+    const effectiveDeepseekKey = (deepseekApiKey || localStorage.getItem("lingosync_deepseek_api_key") || "").trim();
+    const effectiveGoogleKey = (googleCloudApiKey || localStorage.getItem("lingosync_google_cloud_api_key") || "").trim();
+    const effectiveWorkerUrl = (ttsWorkerUrl || localStorage.getItem("lingosync_tts_worker_url") || "").trim();
 
-    if (!effectiveAssemblyKey || !effectiveDeepseekKey || !effectiveGeminiKey) {
-      alert("Configure as chaves de API nas Configurações antes de transcrever.\n\n• AssemblyAI — Transcrição\n• DeepSeek — Tradução e Inteligência\n• Gemini — Narração (TTS)");
+    if (!effectiveAssemblyKey || !effectiveDeepseekKey || (!effectiveGoogleKey && !effectiveWorkerUrl)) {
+      alert("Configure as chaves de API nas Configurações antes de transcrever.\n\n• AssemblyAI — Transcrição\n• DeepSeek — Tradução e Inteligência\n• Google Cloud — Narração (TTS)");
       setShowSettings(true);
       e.target.value = '';
       return;
@@ -904,7 +942,7 @@ export default function App() {
     try {
       let transcript;
       transcript = enforceSegmentWordLimit(
-        await transcribeAudio(file, effectiveAssemblyKey, effectiveDeepseekKey, effectiveGeminiKey, hasBillingEnabled)
+        await transcribeAudio(file, nativeLanguage, effectiveAssemblyKey, effectiveDeepseekKey, hasBillingEnabled)
       );
 
       const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'mkv'].includes(file.name.split('.').pop()?.toLowerCase() || '');
@@ -993,13 +1031,23 @@ export default function App() {
     };
 
     return (
-      <div className="space-y-3 p-4 rounded-xl border-[1.5px] border-white/10 bg-white/[0.01] relative overflow-hidden">
+      <div className="space-y-3 p-4 rounded-xl border-[1.5px] border-white/10 bg-white/[0.01] relative">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-300">LingoSync</h1>
-            <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center shrink-0 aspect-square">
-              <LingoSyncLogo className="w-8 h-8 text-[#827367]" />
-            </div>
+            {currentView === 'library' ? (
+              <Badge variant="ghost" className="text-xs font-bold uppercase tracking-widest text-[#827367] bg-transparent border-[1.5px] border-white/10 px-4 py-1.5 h-10 rounded-full flex items-center justify-center leading-none shrink-0 gap-3 w-[215px]">
+                <span className="text-xs font-bold opacity-70">Língua nativa</span>
+                <div className="w-[1px] h-3 bg-[#827367]/30" />
+                <LanguageSelector currentLanguage={nativeLanguage} onLanguageChange={setNativeLanguage} exclude={currentLanguage} />
+              </Badge>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold tracking-tight text-gray-300">LingoSync</h1>
+                <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center shrink-0 aspect-square">
+                  <LingoSyncLogo className="w-8 h-8 text-[#827367]" />
+                </div>
+              </>
+            )}
           </div>
           <div className="flex items-center space-x-1">
             <Button
@@ -1311,13 +1359,13 @@ export default function App() {
                         <Button
                           variant="ghost"
                           onClick={() => setCurrentView('home')}
-                          className="text-gray-600 hover:text-gray-300 text-xs uppercase tracking-widest font-bold flex items-center justify-start w-fit px-2 whitespace-nowrap"
+                          className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10 whitespace-nowrap"
                         >
                           <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
                           <span>Início</span>
                         </Button>
                         <Badge variant="ghost" className="text-xs font-bold uppercase tracking-widest text-[#827367] bg-[#827367]/20 border-none px-4 py-1.5 h-10 rounded-full flex items-center justify-center leading-none shrink-0 gap-3">
-                          <LanguageSelector currentLanguage={currentLanguage} onLanguageChange={setCurrentLanguage} />
+                          <LanguageSelector currentLanguage={currentLanguage} onLanguageChange={setCurrentLanguage} exclude={nativeLanguage} />
                           <div className="w-[1px] h-3 bg-[#827367]/30" />
                           <span>VOCABULÁRIO: {globalKnownWords.length}</span>
                         </Badge>
@@ -1340,7 +1388,7 @@ export default function App() {
                       <Button
                         variant="ghost"
                         onClick={() => setCurrentView('library')}
-                        className="text-gray-600 hover:text-gray-300 text-xs uppercase tracking-widest font-bold flex items-center justify-start w-fit px-2 whitespace-nowrap"
+                        className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10 whitespace-nowrap"
                       >
                         <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
                         <span>Biblioteca</span>
@@ -1348,19 +1396,18 @@ export default function App() {
 
                       <Button
                         variant="ghost"
-                        size="sm"
                         onClick={handleOpenFlashcards}
                         disabled={isGeneratingCards}
-                        className="text-xs uppercase tracking-widest h-10 font-bold text-[#827367] hover:text-[#9a8c80] flex flex-row items-center"
+                        className="text-sm uppercase tracking-widest h-10 font-bold text-[#827367] hover:text-[#9a8c80] flex flex-row items-center px-3 w-fit"
                       >
                         {isGeneratingCards ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin shrink-0" />
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin shrink-0" />
                             {Math.round(flashcardPercent)}%
                           </>
                         ) : (
                           <>
-                            <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <svg className="w-5 h-5 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <rect x="5" y="2" width="14" height="20" rx="4" />
                             </svg>
                             Flashcards
@@ -1386,7 +1433,10 @@ export default function App() {
                         onToggleKnownWord={toggleGlobalKnownWord}
                         hasBillingEnabled={hasBillingEnabled}
                         isPausedExternally={showFlashcards}
-                        onOpenFlashcardAtIndex={(idx) => handleOpenFlashcards(idx)}
+                        onOpenFlashcardAtIndex={(idx, segmentIdx) => handleOpenFlashcards(idx, segmentIdx)}
+                        nativeLanguage={nativeLanguage}
+                        externalJumpToSegmentIndex={externalJumpToSegmentIndex}
+                        onJumpedToSegment={() => setExternalJumpToSegmentIndex(null)}
                       />
                     </div>
 
@@ -1416,6 +1466,11 @@ export default function App() {
                               }}
                               hasBillingEnabled={hasBillingEnabled}
                               initialIndex={flashcardStartIndex}
+                              returnSegmentIndex={returnSegmentIndex}
+                              onWordClick={(segmentIdx) => {
+                                setShowFlashcards(false);
+                                setExternalJumpToSegmentIndex(segmentIdx);
+                              }}
                             />
                           </div>
                         </motion.div>
@@ -1507,28 +1562,62 @@ export default function App() {
                     </p>
                   </div>
 
-                  {/* Gemini API Key */}
+                  {/* Google Cloud API Key (TTS) */}
                   <div className="space-y-3 pt-4 border-t border-white/5">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
                         <Key className="w-3 h-3 mr-2" />
-                        Google Gemini API Key
+                        Google Cloud API Key (TTS)
                       </label>
                       <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
-                        Tradução · Flashcards · TTS
+                        Narração · Flashcards
                       </span>
+                      <a 
+                        href="https://console.cloud.google.com/apis/api/texttospeech.googleapis.com/quotas"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[9px] font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors flex items-center ml-auto mr-3"
+                      >
+                        Acompanhar Cota
+                        <ExternalLink className="w-2.5 h-2.5 ml-1.5" />
+                      </a>
                     </div>
                     <div className="relative">
                       <input
                         type="password"
-                        value={userApiKey}
-                        onChange={(e) => setUserApiKey(e.target.value)}
-                        placeholder="Cole sua chave Gemini aqui..."
+                        value={googleCloudApiKey}
+                        onChange={(e) => setGoogleCloudApiKey(e.target.value)}
+                        placeholder="Cole sua chave Google Cloud aqui..."
                         className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
                       />
                     </div>
                     <p className="text-[10px] text-gray-500 leading-relaxed italic">
-                      Sua chave é salva apenas no seu navegador e não é enviada para nossos servidores.
+                      Usada para a narração profissional dos flashcards (Vozes Neural2).
+                    </p>
+                  </div>
+
+                  {/* TTS Worker URL */}
+                  <div className="space-y-3 pt-4 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
+                        <Link2 className="w-3 h-3 mr-2" />
+                        TTS Proxy Worker URL
+                      </label>
+                      <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
+                        Narração (TTS) · Google Cloud
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={ttsWorkerUrl}
+                        onChange={(e) => setTtsWorkerUrl(e.target.value)}
+                        placeholder="https://seu-worker.workers.dev"
+                        className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                      URL do seu Cloudflare Worker que faz o proxy para a Google Cloud TTS API (Neural2).
                     </p>
                   </div>
 
@@ -1647,12 +1736,12 @@ export default function App() {
                         </a>
 
                         <a
-                          href="https://aistudio.google.com/app/plan"
+                          href="https://console.cloud.google.com/apis/api/texttospeech.googleapis.com/quotas"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] hover:bg-white/[0.04] transition-all group"
                         >
-                          <span className="uppercase tracking-widest">MEU USO (GOOGLE GEMINI TTS)</span>
+                          <span className="uppercase tracking-widest">MEU USO (CLOUD TEXT-TO-SPEECH API)</span>
                           <ExternalLink className="w-3 h-3 text-[#827367] opacity-80 group-hover:opacity-100 transition-opacity" />
                         </a>
                       </div>

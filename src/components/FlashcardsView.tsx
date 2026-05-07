@@ -18,6 +18,8 @@ interface FlashcardsViewProps {
   onToggleKnownWord?: (word: string) => void;
   hasBillingEnabled?: boolean;
   initialIndex?: number;
+  returnSegmentIndex?: number | null;
+  onWordClick?: (segmentIdx: number) => void;
 }
 
 import { playPcmBase64, isQuotaError, generateExpressionAudio, ensureAudioContext } from "../services/geminiService";
@@ -34,7 +36,9 @@ export function FlashcardsView({
   globalKnownWords = [], 
   onToggleKnownWord,
   hasBillingEnabled = false,
-  initialIndex = 0
+  initialIndex = 0,
+  returnSegmentIndex,
+  onWordClick
 }: FlashcardsViewProps) {
   const flashcards = track.flashcards || [];
   const [currentIndex, setCurrentIndex] = useState(() => {
@@ -46,6 +50,9 @@ export function FlashcardsView({
   const [isFlipped, setIsFlipped] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState<string>(() => {
+    return localStorage.getItem("lingosync_preferred_voice") || "en-US-Neural2-A";
+  });
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
   
   const currentCard = flashcards[currentIndex];
@@ -116,6 +123,7 @@ export function FlashcardsView({
     if (!currentCard || isGeneratingAudio || isPlayingAudio) return;
     
     const word = currentCard.expression;
+    const voiceKey = `${word}:${selectedVoice}`;
     if (isPlayingAudio && !forceRegenerate) return;
 
     setIsPlayingAudio(true);
@@ -143,6 +151,19 @@ export function FlashcardsView({
       }
 
     // Function to play base64 audio using Web Audio API directly
+    const playBase64AsDataUri = async (base64Data: string): Promise<boolean> => {
+      try {
+        // Google Cloud TTS returns MP3 encoded base64 by default in our configuration.
+        // HTML5 Audio is extremely reliable on iOS for async playback.
+        const src = `data:audio/mp3;base64,${base64Data}`;
+        await playAudioElement(src);
+        return true;
+      } catch (err) {
+        console.warn("playBase64AsDataUri failed:", err);
+        return false;
+      }
+    };
+
     const playWithWebAudio = async (base64Data: string): Promise<boolean> => {
       try {
         const binaryString = atob(base64Data);
@@ -187,15 +208,19 @@ export function FlashcardsView({
       }
     };
 
-    // Play already-generated flashcard audio directly if available.
+    // Play already-generated flashcard audio directly if it matches the selected voice.
     if (!forceRegenerate) {
-      if (currentCard.audioBase64) {
+      if (currentCard.audioBase64 && currentCard.audioVoiceId === selectedVoice) {
         // Check if audio is silent (mostly zeros in base64)
         // We check if a significant portion of the start is silent (20000 chars is ~300ms)
         const isLikelySilent = currentCard.audioBase64.length > 20000 && /^A+$/.test(currentCard.audioBase64.substring(0, 20000));
         
         if (!isLikelySilent) {
-          // Try Web Audio API first (most reliable)
+          // Try HTML5 Audio first (Most reliable for iOS Safari MP3 base64)
+          const playedWithHtml = await playBase64AsDataUri(currentCard.audioBase64);
+          if (playedWithHtml) return;
+
+          // Try Web Audio API next
           const playedWithWebAudio = await playWithWebAudio(currentCard.audioBase64);
           if (playedWithWebAudio) return;
           
@@ -228,17 +253,21 @@ export function FlashcardsView({
 
     // Check global cache next
     if (!forceRegenerate) {
-      const cached = await getCachedWordAudio(word);
+      const cached = await getCachedWordAudio(word, selectedVoice);
       if (cached) {
         console.log("Found cached audio, length:", cached.length);
         console.log("First 100 chars of cached audio:", cached.substring(0, 100));
         
         // Save to current flashcard for future offline exports
         const newFlashcards = [...flashcards];
-        newFlashcards[currentIndex] = { ...currentCard, audioBase64: cached };
+        newFlashcards[currentIndex] = { ...currentCard, audioBase64: cached, audioVoiceId: selectedVoice };
         onUpdateTrack({ flashcards: newFlashcards });
         
-        // Try Web Audio API first
+        // Try HTML5 Audio first
+        const playedWithHtml = await playBase64AsDataUri(cached);
+        if (playedWithHtml) return;
+
+        // Try Web Audio API next
         const playedWithWebAudio = await playWithWebAudio(cached);
         if (playedWithWebAudio) return;
         
@@ -256,30 +285,33 @@ export function FlashcardsView({
     }
 
     console.log("No existing audio found, generating new audio");
-    const persistedGeminiApiKey = typeof window !== "undefined" ? (localStorage.getItem("gemini_api_key") || "") : "";
-    const effectiveGeminiApiKey = (userApiKey || persistedGeminiApiKey).trim();
+    const persistedGoogleKey = typeof window !== "undefined" ? (localStorage.getItem("lingosync_google_cloud_api_key") || "").trim() : "";
+    const persistedWorkerUrl = typeof window !== "undefined" ? (localStorage.getItem("lingosync_tts_worker_url") || "").trim() : "";
 
-    if (!effectiveGeminiApiKey) {
+    if (!persistedGoogleKey && !persistedWorkerUrl) {
       onMissingKey?.();
       return;
     }
 
     setIsGeneratingAudio(true);
-    console.log("Calling generateExpressionAudio for word:", word);
-    // Using 'Aoede' for a suave/soft voice as requested
-    const base64Audio = await generateExpressionAudio(word, effectiveGeminiApiKey, 'Aoede', hasBillingEnabled);
+    console.log("Calling generateExpressionAudio for word:", word, "with voice:", selectedVoice);
+    const base64Audio = await generateExpressionAudio(word, selectedVoice);
     console.log("Audio generated successfully, length:", base64Audio.length);
     console.log("First 100 chars of generated audio:", base64Audio.substring(0, 100));
     
     // Save globally
-    await setCachedWordAudio(word, base64Audio);
+    await setCachedWordAudio(word, base64Audio, selectedVoice);
     
     // Save to flashcard
     const newFlashcards = [...flashcards];
-    newFlashcards[currentIndex] = { ...currentCard, audioBase64: base64Audio };
+    newFlashcards[currentIndex] = { ...currentCard, audioBase64: base64Audio, audioVoiceId: selectedVoice };
     onUpdateTrack({ flashcards: newFlashcards });
     
-    // Try Web Audio API first
+    // Try HTML5 Audio first
+    const playedWithHtml = await playBase64AsDataUri(base64Audio);
+    if (playedWithHtml) return;
+
+    // Try Web Audio API next
     const playedWithWebAudio = await playWithWebAudio(base64Audio);
     if (playedWithWebAudio) return;
     
@@ -359,14 +391,14 @@ export function FlashcardsView({
         <Button 
           variant="ghost" 
           onClick={onClose}
-          className="text-gray-600 hover:text-gray-300 text-xs uppercase tracking-widest font-bold flex items-center justify-start w-fit px-2"
+          className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10"
         >
           <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
           Voltar à Lição
         </Button>
         <div className="flex items-center space-x-4 pr-4">
           {flashcards.length > 0 && !isNaN(currentIndex) && (
-            <span className="text-[10px] font-mono text-gray-500">
+            <span className="text-sm font-bold font-mono text-gray-400">
               {currentIndex + 1} / {flashcards.length}
             </span>
           )}
@@ -411,21 +443,29 @@ export function FlashcardsView({
                   <Button 
                     variant="ghost" 
                     className={cn(
-                      "flex items-center justify-center rounded-full h-10 px-4 transition-colors",
+                      "flex items-center justify-center rounded-full h-12 px-6 transition-colors",
                       isKnown ? "text-[#a39487] bg-[#827367]/20 hover:bg-[#827367]/30" : "text-gray-500 bg-white/5 hover:text-gray-300 hover:bg-white/10"
                     )}
                     onClick={(e: React.MouseEvent) => toggleKnown(currentCard.expression, e)}
                   >
                     <CheckCircle2 className="w-4 h-4 mr-2 border-none shrink-0" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                    <span className="text-[12px] font-bold uppercase tracking-widest mt-0.5">
                       {isKnown ? "Já conheço" : "Aprendendo"}
                     </span>
                   </Button>
                 </div>
 
-                <h2 className={cn(
+                <h2 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (returnSegmentIndex !== undefined && returnSegmentIndex !== null && onWordClick) {
+                      onWordClick(returnSegmentIndex);
+                    }
+                  }}
+                  className={cn(
                   "text-3xl font-bold leading-tight",
-                  isKnown ? "text-[#827367]" : "text-gray-100 border-b-[1.5px] border-dotted border-[#827367] pb-1"
+                  isKnown ? "text-[#827367]" : "text-gray-100 border-b-[1.5px] border-dotted border-[#827367] pb-1",
+                  returnSegmentIndex !== undefined && returnSegmentIndex !== null && onWordClick ? "cursor-pointer hover:text-white hover:opacity-80 transition-all" : ""
                 )}>
                   {currentCard?.expression || "Carregando..."}
                 </h2>
@@ -433,12 +473,38 @@ export function FlashcardsView({
                   <RotateCw className="w-3 h-3 mr-2" /> Toque para virar
                 </div>
 
-                {/* Speaker icon — bottom-right */}
-                <div className="absolute bottom-6 right-6">
+                {/* Voice Selection & Speaker — bottom-right */}
+                <div className="absolute bottom-6 right-6 flex items-center space-x-3">
+                  <div className="flex bg-white/5 rounded-full p-1.5 border border-white/10 space-x-1">
+                    {[
+                      { id: 'en-US-Neural2-A', label: 'F1' },
+                      { id: 'en-US-Neural2-F', label: 'F2' },
+                      { id: 'en-US-Neural2-D', label: 'M1' },
+                      { id: 'en-US-Neural2-I', label: 'M2' },
+                    ].map((voice) => (
+                      <button
+                        key={voice.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedVoice(voice.id);
+                          localStorage.setItem("lingosync_preferred_voice", voice.id);
+                        }}
+                        className={cn(
+                          "w-9 h-9 rounded-full text-[10px] font-bold transition-all flex items-center justify-center",
+                          selectedVoice === voice.id 
+                            ? "bg-[#827367] text-white shadow-lg scale-110" 
+                            : "text-gray-600 hover:text-gray-400"
+                        )}
+                      >
+                        {voice.label}
+                      </button>
+                    ))}
+                  </div>
+
                   <Button 
                     size="icon" 
                     variant="ghost" 
-                    className="rounded-full w-10 h-10 text-gray-600 hover:text-[#827367] active:scale-90 transition-all"
+                    className="rounded-full w-12 h-12 text-gray-600 hover:text-[#827367] active:scale-90 transition-all bg-white/5 border border-white/10 flex items-center justify-center"
                     onClick={(e: React.MouseEvent) => e.stopPropagation()}
                     onMouseDown={handleTouchStart}
                     onMouseUp={handleTouchEnd}
@@ -448,9 +514,9 @@ export function FlashcardsView({
                     disabled={isGeneratingAudio}
                   >
                     {isGeneratingAudio ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 className="w-6 h-6 animate-spin" />
                     ) : (
-                      <Volume2 className="w-5 h-5" />
+                      <Volume2 className="w-6 h-6" />
                     )}
                   </Button>
                 </div>
@@ -460,12 +526,12 @@ export function FlashcardsView({
               <div className="absolute inset-0 [transform:rotateY(180deg)] backface-hidden bg-[#1a1a1a] rounded-[2.5rem] border-[1.5px] border-[#827367]/30 p-8 flex flex-col items-center justify-center text-center space-y-6 shadow-2xl">
                 <div className="space-y-2">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#827367]">Tradução</span>
-                  <p className="text-2xl font-bold text-gray-200">{currentCard?.translation || "..."}</p>
+                  <p className="text-2xl font-bold text-gray-400 italic">{currentCard?.translation || "..."}</p>
                 </div>
                 <div className="w-12 h-[1px] bg-white/5" />
                 <div className="space-y-2 overflow-y-auto max-h-40 px-2 scrollbar-hide">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-600">Explicação</span>
-                  <p className="text-sm text-gray-400 italic leading-relaxed">{currentCard?.explanation || "Sem explicação disponível."}</p>
+                  <p className="text-base text-gray-400 italic leading-relaxed">{currentCard?.explanation || "Sem explicação disponível."}</p>
                 </div>
               </div>
             </motion.div>
@@ -475,8 +541,8 @@ export function FlashcardsView({
       </div>
 
       <div className="p-4 sm:p-8 pb-6 sm:pb-8 flex items-center justify-center space-x-6 shrink-0 z-10 bg-[#0d0d0d]">
-        <Button variant="ghost" size="icon" onClick={prevCard} className="w-12 h-12 rounded-full border border-white/10 text-gray-400 flex items-center justify-center">
-          <ChevronLeft className="w-6 h-6 shrink-0" />
+        <Button variant="ghost" size="icon" onClick={prevCard} className="w-16 h-14 rounded-full border border-white/10 text-gray-400 flex items-center justify-center hover:bg-white/5 active:scale-95 transition-all">
+          <ChevronLeft className="w-8 h-8 shrink-0" />
         </Button>
         <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
           <motion.div 
@@ -485,8 +551,8 @@ export function FlashcardsView({
             animate={{ width: `${((currentIndex + 1) / flashcards.length) * 100}%` }}
           />
         </div>
-        <Button variant="ghost" size="icon" onClick={nextCard} className="w-12 h-12 rounded-full border border-white/10 text-gray-400 flex items-center justify-center">
-          <ChevronRight className="w-6 h-6 shrink-0" />
+        <Button variant="ghost" size="icon" onClick={nextCard} className="w-16 h-14 rounded-full border border-white/10 text-gray-400 flex items-center justify-center hover:bg-white/5 active:scale-95 transition-all">
+          <ChevronRight className="w-8 h-8 shrink-0" />
         </Button>
       </div>
     </div>

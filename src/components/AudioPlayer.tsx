@@ -34,7 +34,10 @@ interface AudioPlayerProps {
   onToggleKnownWord?: (word: string) => void;
   hasBillingEnabled?: boolean;
   isPausedExternally?: boolean;
-  onOpenFlashcardAtIndex?: (index: number) => void;
+  onOpenFlashcardAtIndex?: (index: number, segmentIndex?: number) => void;
+  nativeLanguage: string;
+  externalJumpToSegmentIndex?: number | null;
+  onJumpedToSegment?: () => void;
 }
 
 function DropdownSelector({
@@ -102,7 +105,7 @@ function DropdownSelector({
   )
 }
 
-export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUpdateTrack, onVideoSyncClick, onMissingAudioSyncClick, userApiKey, deepseekApiKey, onMissingKey, onQuotaExceeded, globalKnownWords = [], onToggleKnownWord, hasBillingEnabled = false, isPausedExternally = false, onOpenFlashcardAtIndex }: AudioPlayerProps) {
+export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUpdateTrack, onVideoSyncClick, onMissingAudioSyncClick, userApiKey, deepseekApiKey, onMissingKey, onQuotaExceeded, globalKnownWords = [], onToggleKnownWord, hasBillingEnabled = false, isPausedExternally = false, onOpenFlashcardAtIndex, nativeLanguage, externalJumpToSegmentIndex, onJumpedToSegment }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -110,6 +113,19 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const [duration, setDuration] = useState(0);
   const [showTranslations, setShowTranslations] = useState<Record<number, boolean>>({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  const getLanguageNameLabel = (code: string) => {
+    const names: Record<string, string> = {
+      en: 'Inglês',
+      es: 'Espanhol',
+      de: 'Alemão',
+      fr: 'Francês',
+      el: 'Grego',
+      he: 'Hebraico',
+      pt: 'Português'
+    };
+    return names[code] || 'Idiomas';
+  };
   const [editSliderBounds, setEditSliderBounds] = useState({ min: 0, max: 0 });
   const [isEditModeGlobal, setIsEditModeGlobal] = useState(false);
   const longPressTimerRef = useRef<any>(null);
@@ -368,7 +384,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
           cardIdx = track.flashcards.findIndex(fc => regex.test(fc.expression));
         }
 
-        onOpenFlashcardAtIndex(cardIdx !== -1 ? cardIdx : 0);
+        onOpenFlashcardAtIndex(cardIdx !== -1 ? cardIdx : 0, idx);
       }
     } else {
       // Start single click timer
@@ -443,6 +459,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         editData.text,
         editData.translation,
         track.transcript.map(s => s.text).join(" "),
+        nativeLanguage,
         deepseekApiKey,
         hasBillingEnabled
       );
@@ -572,6 +589,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
               originalTranslation,
               beforeSplit,
               afterSplit,
+              nativeLanguage,
               deepseekApiKey,
               hasBillingEnabled
             );
@@ -845,6 +863,16 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }, 400);
   };
 
+  useEffect(() => {
+    if (externalJumpToSegmentIndex !== undefined && externalJumpToSegmentIndex !== null) {
+      const segment = track.transcript[externalJumpToSegmentIndex];
+      if (segment) {
+        playSegment(segment.start, segment.end, externalJumpToSegmentIndex);
+        onJumpedToSegment?.();
+      }
+    }
+  }, [externalJumpToSegmentIndex, track.transcript]);
+
   const playSegment = (start: number, end: number, index: number) => {
     const repeats = globalRepeat;
     repeatsLeftRef.current = repeats === Infinity ? Infinity : Math.max(0, repeats - 1);
@@ -938,8 +966,6 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       <div className="p-4 sm:p-6 flex flex-col bg-white/[0.04] gap-4">
         <div className="flex items-center space-x-6 w-full">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
             key={track.id}
             className={cn(
               "w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shrink-0 aspect-square ml-1 sm:ml-2 overflow-hidden transition-all duration-300 rounded-full",
@@ -1141,7 +1167,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Tradução em Português</label>
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Tradução em {getLanguageNameLabel(nativeLanguage)}</label>
                           <Button
                             variant="ghost"
                             size="sm"

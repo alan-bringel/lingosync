@@ -30,19 +30,21 @@ async function persistCache() {
 }
 
 /**
- * Get cached audio for a word (case-insensitive).
+ * Get cached audio for a word and specific voice.
  * Returns base64 PCM string or undefined if not cached.
  */
-export async function getCachedWordAudio(word: string): Promise<string | undefined> {
+export async function getCachedWordAudio(word: string, voiceName: string): Promise<string | undefined> {
   const cache = await loadCache();
-  return cache[word.toLowerCase().trim()];
+  const key = `${word.toLowerCase().trim()}:${voiceName}`;
+  return cache[key];
 }
 
 /**
- * Save audio for a word in the global cache (case-insensitive).
+ * Save audio for a word and specific voice in the global cache.
  */
-export async function setCachedWordAudio(word: string, audioBase64: string): Promise<void> {
+export async function setCachedWordAudio(word: string, audioBase64: string, voiceName: string): Promise<void> {
   const cache = await loadCache();
-  cache[word.toLowerCase().trim()] = audioBase64;
+  const key = `${word.toLowerCase().trim()}:${voiceName}`;
+  cache[key] = audioBase64;
   await persistCache();
 }

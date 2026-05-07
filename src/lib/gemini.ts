@@ -20,6 +20,20 @@ function assertNonProGeminiModel(model: string) {
   }
 }
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  de: 'German',
+  fr: 'French',
+  el: 'Greek',
+  he: 'Hebrew',
+  pt: 'Portuguese'
+};
+
+function getLanguageName(code: string): string {
+  return LANGUAGE_NAMES[code] || 'Portuguese';
+}
+
 function normalizeTranslationPunctuationBySource(sourceText: string, translationText: string): string {
   const source = (sourceText || "").trim();
   const translation = (translationText || "").trim();
@@ -146,9 +160,9 @@ function canUseRefinedEnglishText(original: string, refined: string): boolean {
  */
 export async function transcribeAudio(
   audioBlob: Blob,
+  nativeLanguage: string,
   assemblyAiApiKey: string,
   deepseekApiKey: string,
-  geminiApiKey: string,
   hasBillingEnabled?: boolean
 ): Promise<TranscriptSegment[]> {
   if (!assemblyAiApiKey || assemblyAiApiKey.trim() === "") {
@@ -156,9 +170,6 @@ export async function transcribeAudio(
   }
   if (!deepseekApiKey || deepseekApiKey.trim() === "") {
     throw new Error("DeepSeek API Key não configurada.");
-  }
-  if (!geminiApiKey || geminiApiKey.trim() === "") {
-    throw new Error("Gemini API Key não configurada.");
   }
 
   // ── Step 1: STT via AssemblyAI ───────────────────────────────────────────
@@ -173,6 +184,7 @@ export async function transcribeAudio(
   console.log(`[transcribeAudio] Inteligência (Tradução/Segmentação) via DeepSeek...`);
   const translated = await translateAndFormatWithDeepSeek(
     rawSegments as any[],
+    nativeLanguage,
     deepseekApiKey
   );
 
@@ -184,6 +196,7 @@ export async function transcribeAudio(
  */
 export async function translateAndFormatWithDeepSeek(
   rawChunks: any[],
+  nativeLanguage: string,
   apiKey: string
 ): Promise<TranscriptSegment[]> {
   // Extreme Optimization: Bare minimum tokens for input
@@ -194,15 +207,17 @@ export async function translateAndFormatWithDeepSeek(
     e: Math.round((w.end || 0) * 100) / 100
   }));
 
+  const langName = getLanguageName(nativeLanguage);
   const systemPrompt = `You are a world-class linguistic expert. Your goal is to re-segment a raw transcript into study-friendly blocks for a language learning app.
 You must be as intelligent and context-aware as Gemini 1.5 Flash.
 
 ### CRITICAL RULES (TOTAL FIDELITY & SEMANTIC ALIGNMENT):
 1. 100% WORD COVERAGE: Use EVERY word from the input exactly once.
-2. NO CROSSING RULE: A translated word MUST stay with its English source. If Portuguese requires an inverted word order (e.g., "simple way" -> "forma simples"), DO NOT split them. MOVE the English word to the next segment if necessary.
-3. NATURAL PORTUGUESE: Prioritize idiomatic, native-sounding Portuguese.
+2. NO CROSSING RULE: A translated word MUST stay with its English source. If ${langName} requires an inverted word order (e.g., "simple way" -> "forma simples"), DO NOT split them. MOVE the English word to the next segment if necessary.
+3. NATURAL ${langName.toUpperCase()}: Prioritize idiomatic, native-sounding ${langName}.
 4. ADJUST ENGLISH BREAKS: You have full authority to move English words between segments to ensure the translation is not split.
 5. SIZE LIMITS: 4 to 15 words per segment.
+6. FIX TRANSCRIPTION ERRORS: AssemblyAI sometimes mishears words (e.g., "the" instead of "that", "it's" instead of "its", "to" instead of "too"). If a word is contextually illogical but phonetically similar to a correct word, you MUST fix the English text in your output to ensure the lesson makes sense.
 
 ### EXAMPLE OF PREVENTING LEAKS:
 - Bad Break: 
@@ -379,7 +394,7 @@ export async function generateAudioFromText(text: string, voiceSample?: { data: 
   );
 }
 
-export async function translateAndFormatWithGemini(rawChunks: any[], customApiKey?: string, hasBillingEnabled?: boolean): Promise<TranscriptSegment[]> {
+export async function translateAndFormatWithGemini(rawChunks: any[], nativeLanguage: string, customApiKey?: string, hasBillingEnabled?: boolean): Promise<TranscriptSegment[]> {
   const apiKey = customApiKey;
   if (!apiKey) throw new Error("API Key não configurada. Por favor, acesse as configurações e insira sua chave do Gemini.");
   
@@ -399,6 +414,7 @@ export async function translateAndFormatWithGemini(rawChunks: any[], customApiKe
         w: (chunk.words || []).map((w: any) => ({ t: w.text, s: w.start, e: w.end }))
       }));
 
+      const langName = getLanguageName(nativeLanguage);
       const prompt = `Translate and re-segment this AssemblyAI transcript into logical study segments (5-15 words).
 Output must be a MINIFIED JSON array of objects.
 
@@ -408,7 +424,7 @@ RULES:
 - Semantic Breaks: Break at logical endings or conjunctions (and, but, so, because).
 - Avoid tiny segments: Never 1-3 words unless it's an isolate phrase mentioned above.
 - Timestamps: Match start/end to word timings.
-- Translation: Portuguese. Match punctuation style.
+- Translation: ${langName}. Match punctuation style.
 - words array: Include timings.
 - Order: Preserve sequence.
 
