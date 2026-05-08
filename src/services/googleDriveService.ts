@@ -1,6 +1,6 @@
 import { AudioTrack } from "../types";
 
-const SCOPES = "https://www.googleapis.com/auth/drive.appdata";
+const SCOPES = "openid profile email https://www.googleapis.com/auth/drive.appdata";
 
 export interface GoogleUserInfo {
   name: string;
@@ -99,7 +99,11 @@ class GoogleDriveService {
           return;
         }
         this.setTokens(response);
-        await this.getUserInfo();
+        const userInfo = await this.getUserInfo();
+        if (!userInfo) {
+          reject(new Error("Failed to fetch user info"));
+          return;
+        }
         resolve();
       };
       this.tokenClient.requestAccessToken({ prompt: "consent" });
@@ -115,16 +119,23 @@ class GoogleDriveService {
       }
       this.tokenClient.callback = async (response: any) => {
         if (response.error || !response.access_token) {
+          this.logout();
           resolve(false);
           return;
         }
         this.setTokens(response);
-        await this.getUserInfo();
+        const userInfo = await this.getUserInfo();
+        if (!userInfo) {
+          this.logout();
+          resolve(false);
+          return;
+        }
         resolve(true);
       };
       try {
         this.tokenClient.requestAccessToken();
       } catch {
+        this.logout();
         resolve(false);
       }
     });
