@@ -205,8 +205,9 @@ class GoogleDriveService {
 
     if (response.status === 401 || response.status === 403) {
       const errorBody = await response.json().catch(() => ({}));
-      this.logout();
-      throw new Error(errorBody.error?.message || `Unauthorized (${response.status}) - Please login again`);
+      const msg = errorBody.error?.message || `HTTP ${response.status}`;
+      console.error("Google Drive API error:", msg, "| URL:", url.split("?")[0]);
+      throw new Error(msg);
     }
 
     if (!response.ok) {
