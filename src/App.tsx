@@ -17,7 +17,7 @@ import { FlashcardsView } from "./components/FlashcardsView";
 import { saveTrack, getSavedTracks, deleteTrack, updateTrackMetadata, clearAllTracks, saveTrackVideo, removeTrackVideo, removeTrackAudio, saveLastDirectoryHandle, getLastDirectoryHandle } from "./lib/db";
 import { get, set } from "idb-keyval";
 import { googleDriveService } from "./services/googleDriveService";
-import { Cloud, CloudOff, CloudDownload, CloudUpload, CheckCircle2, AlertCircle } from "lucide-react";
+import { CloudOff, CloudUpload, AlertCircle } from "lucide-react";
 
 import { QuotaExceededModal } from "./components/QuotaExceededModal";
 import { RateLimitModal } from "./components/RateLimitModal";
@@ -1594,9 +1594,16 @@ export default function App() {
                   <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold">{downloadProgress[track.id] || 0}</span>
                 </div>
               ) : track.syncStatus === 'synced' ? (
-                <CheckCircle2 className="w-5 h-5" />
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" fill="#827367" opacity="0.3"/>
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" stroke="#e0d6cf" strokeWidth="1.5" fill="none"/>
+                  <path d="M9 14l2 2 4-4" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               ) : track.syncStatus === 'missing_local' ? (
-                <CloudDownload className="w-5 h-5" />
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" stroke="#e0d6cf" strokeWidth="1.5" fill="none"/>
+                  <path d="M12 10v6m0 0l-3-3m3 3l3-3" stroke="#e0d6cf" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               ) : track.syncStatus === 'cloud_only' ? (
                 <CloudOff className="w-5 h-5" />
               ) : track.syncStatus === 'error' ? (
