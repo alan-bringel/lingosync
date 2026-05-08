@@ -123,6 +123,20 @@ export async function deleteTrack(id: string) {
   }
 }
 
+export async function removeTrackAudio(id: string) {
+  try {
+    const storedTracks = await get<StoredTrack[]>(STORE_KEY) || [];
+    const index = storedTracks.findIndex(t => t.id === id);
+    if (index >= 0) {
+      delete storedTracks[index].audioBuffer;
+      delete storedTracks[index].audioType;
+      await set(STORE_KEY, storedTracks);
+    }
+  } catch (error) {
+    console.warn("Failed to remove track audio from Local Storage.", error);
+  }
+}
+
 export async function removeTrackVideo(trackId: string) {
   try {
     const storedTracks = await get<StoredTrack[]>(STORE_KEY) || [];

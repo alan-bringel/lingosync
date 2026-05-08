@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { AudioPlayer } from "./components/AudioPlayer";
 import { INITIAL_PLAYLIST } from "./constants";
 import { AudioTrack, TranscriptSegment, Word } from "./types";
@@ -7,15 +7,17 @@ const ScrollArea = ({ children, className }: any) => <div className={className} 
 // import { Badge } from "@/components/ui/badge";
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
-import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins } from "lucide-react";
+import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
 import { motion, AnimatePresence, useMotionValue } from "motion/react";
 import { transcribeAudio } from "./lib/gemini";
 import { cn } from "@/lib/utils";
 import { FlashcardsView } from "./components/FlashcardsView";
-import { saveTrack, getSavedTracks, deleteTrack, updateTrackMetadata, clearAllTracks, saveTrackVideo, removeTrackVideo, saveLastDirectoryHandle, getLastDirectoryHandle } from "./lib/db";
+import { saveTrack, getSavedTracks, deleteTrack, updateTrackMetadata, clearAllTracks, saveTrackVideo, removeTrackVideo, removeTrackAudio, saveLastDirectoryHandle, getLastDirectoryHandle } from "./lib/db";
 import { get, set } from "idb-keyval";
+import { googleDriveService } from "./services/googleDriveService";
+import { Cloud, CloudOff, CloudDownload, CloudUpload, CheckCircle2, AlertCircle } from "lucide-react";
 
 import { QuotaExceededModal } from "./components/QuotaExceededModal";
 import { RateLimitModal } from "./components/RateLimitModal";
@@ -281,6 +283,171 @@ export default function App() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [showFlashcards, setShowFlashcards] = useState(false);
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
+  const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
+  const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedAutoSync = (trackId: string) => {
+    if (autoSyncTimerRef.current) {
+      clearTimeout(autoSyncTimerRef.current);
+    }
+    autoSyncTimerRef.current = setTimeout(() => {
+      const track = playlist.find(t => t.id === trackId);
+      if (track && isGoogleLoggedIn) {
+        syncTrackToDrive(track);
+      }
+    }, 3000);
+  };
+
+  const syncTrackToDrive = async (track: AudioTrack) => {
+    if (!isGoogleLoggedIn) return;
+    setIsSyncing(track.id);
+    try {
+      // 1. Prepare lesson JSON (similar to handleExport but without base64 audio)
+      const exportData: any = { ...track };
+      delete exportData.url;
+      delete exportData.localVideoUrl;
+      delete exportData.syncStatus;
+
+      // 2. Upload/Update JSON file
+      const jsonBlob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+      const jsonFileName = `${track.title}.lsync.json`;
+      const driveFileId = await googleDriveService.uploadFile(jsonFileName, jsonBlob, "application/json", track.driveFileId);
+
+      // 3. Upload/Update Audio file if it exists locally
+      let driveAudioFileId = track.driveAudioFileId;
+      const storedTracks = await get<any[]>('lingosync_tracks') || [];
+      const storedTrack = storedTracks.find((t: any) => t.id === track.id);
+      
+      if (storedTrack?.audioBuffer) {
+        const audioBlob = new Blob([storedTrack.audioBuffer], { type: storedTrack.audioType || 'audio/wav' });
+        const audioFileName = track.audioFileName || `${track.title}.mp3`;
+        driveAudioFileId = await googleDriveService.uploadFile(audioFileName, audioBlob, storedTrack.audioType || 'audio/mpeg', track.driveAudioFileId);
+      }
+
+      // 4. Update local track with Drive IDs
+      const updatedTrack = { 
+        ...track, 
+        driveFileId, 
+        driveAudioFileId, 
+        syncStatus: 'synced' as const 
+      };
+      await updateTrackMetadata(track.id, { 
+        driveFileId, 
+        driveAudioFileId, 
+        syncStatus: 'synced' 
+      });
+      
+      setPlaylist(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
+    } catch (error) {
+      console.error("Failed to sync to Drive:", error);
+      await updateTrackMetadata(track.id, { syncStatus: 'error' });
+      setPlaylist(prev => prev.map(t => t.id === track.id ? { ...t, syncStatus: 'error' } : t));
+    } finally {
+      setIsSyncing(null);
+    }
+  };
+
+  const downloadTrackFromDrive = async (track: AudioTrack) => {
+    if (!isGoogleLoggedIn || !track.driveFileId || !track.driveAudioFileId) return;
+    setIsSyncing(track.id);
+    try {
+      // 1. Download JSON
+      const jsonBlob = await googleDriveService.downloadFile(track.driveFileId);
+      const jsonData = JSON.parse(await jsonBlob.text());
+      
+      // 2. Download Audio
+      const audioBlob = await googleDriveService.downloadFile(track.driveAudioFileId);
+      
+      // 3. Save locally
+      const newTrack: AudioTrack = {
+        ...jsonData,
+        id: track.id, // Keep same ID
+        url: URL.createObjectURL(audioBlob),
+        syncStatus: 'synced'
+      };
+      
+      await saveTrack(newTrack, audioBlob);
+      setPlaylist(prev => prev.map(t => t.id === track.id ? newTrack : t));
+      setTimeout(() => evictCacheIfNeeded(), 0);
+    } catch (error) {
+      console.error("Failed to download from Drive:", error);
+    } finally {
+      setIsSyncing(null);
+    }
+  };
+
+  const updateLastAccessed = (trackId: string) => {
+    const now = Date.now();
+    setPlaylist(prev => prev.map(t =>
+      t.id === trackId ? { ...t, lastAccessedAt: now } : t
+    ));
+    updateTrackMetadata(trackId, { lastAccessedAt: now });
+  };
+
+  const evictCacheIfNeeded = () => {
+    const maxCached = 5;
+    const cachedTracks = playlist.filter(t =>
+      t.syncStatus !== 'cloud_only' && t.syncStatus !== 'missing_local' && t.url
+    );
+    if (cachedTracks.length <= maxCached) return;
+    const sorted = [...cachedTracks].sort((a, b) =>
+      (a.lastAccessedAt || 0) - (b.lastAccessedAt || 0)
+    );
+    const toEvict = sorted[0];
+    if (!toEvict || !toEvict.driveFileId) return;
+    removeTrackAudio(toEvict.id).then(() => {
+      if (toEvict.url) URL.revokeObjectURL(toEvict.url);
+      setPlaylist(prev => prev.map(t =>
+        t.id === toEvict.id ? { ...t, url: '', syncStatus: 'cloud_only' as const } : t
+      ));
+      updateTrackMetadata(toEvict.id, { syncStatus: 'cloud_only' as const });
+    }).catch(err => console.error("Failed to evict track from cache:", err));
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      await googleDriveService.login();
+      setIsGoogleLoggedIn(true);
+    } catch (error: any) {
+      if (error.message !== 'user_cancelled' && error.message !== 'access_denied') {
+        console.error("Google login failed:", error);
+        alert("Falha ao conectar com Google Drive. Tente novamente.");
+      }
+    }
+  };
+
+  const handleGoogleLogout = () => {
+    googleDriveService.logout();
+    setIsGoogleLoggedIn(false);
+  };
+
+  const requireGoogleLogin = async (): Promise<boolean> => {
+    if (isGoogleLoggedIn) return true;
+    try {
+      await googleDriveService.login();
+      setIsGoogleLoggedIn(true);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (clientId) {
+      googleDriveService.initialize(clientId).then(async () => {
+        const wasLoggedIn = localStorage.getItem("google_drive_access_token");
+        if (wasLoggedIn) {
+          const success = await googleDriveService.trySilentLogin();
+          setIsGoogleLoggedIn(success);
+        } else {
+          setIsGoogleLoggedIn(false);
+        }
+      });
+    }
+  }, []);
+
   const [currentView, setCurrentView] = useState<View>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem('lingosync_current_view') as View) || 'home';
@@ -636,6 +803,65 @@ export default function App() {
     }
     init();
   }, []);
+
+  // Check Drive for restore when user logs in (after playlist is loaded)
+  const checkDriveRestore = useCallback(async () => {
+    if (!isGoogleLoggedIn) return;
+    try {
+      const files = await googleDriveService.listFiles();
+      const lsyncFiles = files.filter(f => f.name.endsWith('.lsync.json'));
+      
+      if (lsyncFiles.length === 0) return;
+      
+      const localDriveIds = playlist.map(t => t.driveFileId).filter(Boolean);
+      const missingFiles = lsyncFiles.filter(f => !localDriveIds.includes(f.id));
+      
+      if (missingFiles.length > 0) {
+        const confirmRestore = window.confirm(
+          `Encontramos ${missingFiles.length} lição(ões) sua(s) no Google Drive que não estão no seu navegador.\n\nDeseja restaurá-las?`
+        );
+        if (confirmRestore) {
+          for (const file of missingFiles) {
+            try {
+              const jsonBlob = await googleDriveService.downloadFile(file.id);
+              const jsonData = JSON.parse(await jsonBlob.text());
+              
+              const newTrack: AudioTrack = {
+                ...jsonData,
+                url: '',
+                syncStatus: 'missing_local',
+                driveFileId: file.id,
+              };
+              
+              localStorage.setItem(`drive_lesson_${newTrack.id}`, JSON.stringify({
+                title: newTrack.title,
+                driveFileId: file.id,
+                driveAudioFileId: newTrack.driveAudioFileId,
+              }));
+              
+              setPlaylist(prev => {
+                const exists = prev.some(t => t.id === newTrack.id || t.driveFileId === file.id);
+                if (exists) return prev;
+                return [...prev, newTrack];
+              });
+            } catch (err) {
+              console.error("Failed to restore lesson from Drive:", err);
+            }
+          }
+          setTimeout(() => evictCacheIfNeeded(), 100);
+        }
+      }
+    } catch (err) {
+      console.debug("Drive restore check error:", err);
+    }
+  }, [isGoogleLoggedIn, playlist]);
+
+  // When user logs in, check if there are Drive files to restore
+  useEffect(() => {
+    if (isGoogleLoggedIn && !isLoading) {
+      checkDriveRestore();
+    }
+  }, [isGoogleLoggedIn, isLoading, checkDriveRestore]);
 
   const toggleGlobalKnownWord = (word: string) => {
     const lower = word.toLowerCase();
@@ -1041,6 +1267,13 @@ export default function App() {
         setCurrentTrackIndex(newList.length - 1);
         return newList;
       });
+      
+      // Auto-sync to Google Drive if logged in
+      if (isGoogleLoggedIn) {
+        syncTrackToDrive(newTrack);
+        setTimeout(() => evictCacheIfNeeded(), 500);
+      }
+      
       setIsTranscribing(false);
       setCurrentView('lesson');
     } catch (error: any) {
@@ -1058,29 +1291,65 @@ export default function App() {
   };
 
   const handleUpdateTrack = (updatedTrack: Partial<AudioTrack>) => {
-    if (currentTrack) {
+    const trackId = currentTrack?.id;
+    if (trackId) {
       const { url, localVideoUrl, ...updates } = updatedTrack; // never update transient URLs via metadata
-      updateTrackMetadata(currentTrack.id, updates);
+      updateTrackMetadata(trackId, updates);
+      
+      // Auto-sync to Drive when transcript or word progress changes
+      if (isGoogleLoggedIn && (updatedTrack.transcript || updatedTrack.knownWords)) {
+        debouncedAutoSync(trackId);
+      }
     }
     setPlaylist(prev => prev.map((track, i) =>
       i === currentTrackIndex ? { ...track, ...updatedTrack } : track
     ));
   };
 
-  const handleDeleteTrack = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteTrack = async (id: string, e: React.MouseEvent, deleteFromDrive: boolean = false) => {
     e.stopPropagation();
-    if (!window.confirm("Tem certeza que deseja excluir esta lição? Esta ação não pode ser desfeita.")) {
+    const track = playlist.find(t => t.id === id);
+    if (!track) return;
+
+    const message = deleteFromDrive 
+      ? "Tem certeza que deseja excluir esta lição do navegador E do Google Drive? Esta ação não pode ser desfeita."
+      : "Tem certeza que deseja excluir esta lição do navegador? Se ela estiver sincronizada, você poderá baixá-la novamente depois.";
+
+    if (!window.confirm(message)) {
       return;
     }
+
+    // 1. Delete from Drive if requested
+    if (deleteFromDrive && track.driveFileId) {
+      try {
+        await googleDriveService.deleteFile(track.driveFileId);
+        if (track.driveAudioFileId) {
+          await googleDriveService.deleteFile(track.driveAudioFileId);
+        }
+      } catch (error) {
+        console.error("Failed to delete from Drive:", error);
+        alert("Erro ao excluir do Google Drive. A lição será removida apenas localmente.");
+      }
+    }
+
+    // 2. Delete locally
     await deleteTrack(id);
-    const newPlaylist = playlist.filter(t => t.id !== id);
-    setPlaylist(newPlaylist);
-    await refreshGlobalKnownWords(newPlaylist);
+    
+    // If it was synced but only deleted locally, keep it in the playlist but mark as missing_local
+    if (!deleteFromDrive && track.driveFileId) {
+      const updatedPlaylist = playlist.map(t => t.id === id ? { ...t, syncStatus: 'missing_local' as const, url: '' } : t);
+      setPlaylist(updatedPlaylist);
+      await refreshGlobalKnownWords(updatedPlaylist);
+    } else {
+      const newPlaylist = playlist.filter(t => t.id !== id);
+      setPlaylist(newPlaylist);
+      await refreshGlobalKnownWords(newPlaylist);
+    }
+
     if (currentTrack?.id === id) {
       setCurrentView('library');
       setCurrentTrackIndex(0);
     } else {
-      // Adjusted index if deleting item before current
       const deletedIdx = playlist.findIndex(t => t.id === id);
       if (deletedIdx < currentTrackIndex) {
         setCurrentTrackIndex(prev => prev - 1);
@@ -1143,14 +1412,34 @@ export default function App() {
                     <span>10</span>
                   </Badge>
 
-                  {/* User Avatar Placeholder - Neutral Blue with initial A - Size matched to logo circle - No shadow */}
-                  <div 
-                    className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:opacity-90 transition-opacity shrink-0"
-                    title="Usuário Logado"
-                    onClick={() => {/* TODO: Implement Google Login logic here */}}
-                  >
-                    A
-                  </div>
+                  {/* Google User Avatar */}
+                  {isGoogleLoggedIn && googleDriveService.userInfo ? (
+                    <div 
+                      className="relative group cursor-pointer"
+                      onClick={handleGoogleLogout}
+                      title="Desconectar do Google Drive"
+                    >
+                      <img 
+                        src={googleDriveService.userInfo.picture} 
+                        alt={googleDriveService.userInfo.name}
+                        className="w-10 h-10 rounded-full border-2 border-green-400/50 hover:border-green-400 transition-all shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 rounded-full bg-black/0 hover:bg-black/30 transition-all flex items-center justify-center opacity-0 hover:opacity-100">
+                        <span className="text-[9px] font-bold text-white text-center leading-tight">Sair</span>
+                      </div>
+                    </div>
+                  ) : import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleGoogleLogin}
+                      className="text-gray-500 hover:text-gray-300 h-10 w-10 rounded-full hover:bg-white/5 flex items-center justify-center shrink-0"
+                      title="Conectar ao Google Drive"
+                    >
+                      <UserCircle className="w-8 h-8" />
+                    </Button>
+                  ) : null}
                 </>
               )}
   
@@ -1191,13 +1480,23 @@ export default function App() {
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [isMenuOpen]);
 
-    const handleItemClick = () => {
+    const handleItemClick = async () => {
       if (isMenuOpen) {
         setIsMenuOpen(false);
         return;
       }
+      if (track.syncStatus === 'missing_local' || track.syncStatus === 'cloud_only') {
+        if (isGoogleLoggedIn && track.driveFileId && track.driveAudioFileId) {
+          await downloadTrackFromDrive(track);
+          setCurrentTrackIndex(index);
+          setCurrentView('lesson');
+          updateLastAccessed(track.id);
+        }
+        return;
+      }
       setCurrentTrackIndex(index);
       setCurrentView('lesson');
+      updateLastAccessed(track.id);
     };
 
     return (
@@ -1209,37 +1508,86 @@ export default function App() {
         transition={{ delay: index * 0.05, duration: 0.3 }}
       >
         {/* Action Buttons Background - Positioned behind the sliding content */}
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-3 w-[140px] justify-end">
+        <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-3 w-[180px] justify-end">
+          {/* Cloud Sync Button */}
+          {isGoogleLoggedIn && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                if (track.syncStatus === 'missing_local' || track.syncStatus === 'cloud_only') {
+                  downloadTrackFromDrive(track);
+                } else {
+                  syncTrackToDrive(track);
+                }
+              }}
+              disabled={isSyncing === track.id}
+              className={cn(
+                "h-12 w-12 rounded-full transition-all flex items-center justify-center",
+                track.syncStatus === 'synced' ? "text-green-400 hover:bg-green-500/10" : 
+                track.syncStatus === 'missing_local' ? "text-blue-400 hover:bg-blue-500/10" :
+                track.syncStatus === 'cloud_only' ? "text-yellow-400 hover:bg-yellow-500/10" :
+                track.syncStatus === 'error' ? "text-red-400 hover:bg-red-500/10" :
+                "text-[#827367] hover:text-[#9a8c80] hover:bg-white/5"
+              )}
+            >
+              {isSyncing === track.id ? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : track.syncStatus === 'synced' ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : track.syncStatus === 'missing_local' ? (
+                <CloudDownload className="w-5 h-5" />
+              ) : track.syncStatus === 'cloud_only' ? (
+                <CloudOff className="w-5 h-5" />
+              ) : track.syncStatus === 'error' ? (
+                <AlertCircle className="w-5 h-5" />
+              ) : (
+                <CloudUpload className="w-5 h-5" />
+              )}
+            </Button>
+          )}
+
+          {/* Delete Local Button */}
           <Button
             variant="ghost"
             size="icon"
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
-              handleExport(track);
+              handleDeleteTrack(track.id, e, false);
               setIsMenuOpen(false);
             }}
-            className="text-[#827367] hover:text-[#9a8c80] hover:bg-white/5 h-12 w-12 rounded-full transition-all"
-          >
-            <Download className="w-5 h-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e: React.MouseEvent) => {
-              e.stopPropagation();
-              handleDeleteTrack(track.id, e);
-              setIsMenuOpen(false);
-            }}
-            className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-12 w-12 rounded-full transition-all"
+            title="Excluir do navegador"
+            className="text-red-400/60 hover:text-red-400 hover:bg-red-500/10 h-12 w-12 rounded-full transition-all"
           >
             <Trash2 className="w-5 h-5" />
           </Button>
+
+          {/* Delete Everywhere Button (only if synced) */}
+          {track.driveFileId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e: React.MouseEvent) => {
+                e.stopPropagation();
+                handleDeleteTrack(track.id, e, true);
+                setIsMenuOpen(false);
+              }}
+              title="Excluir de tudo (Navegador + Nuvem)"
+              className="text-red-500 hover:text-red-400 hover:bg-red-500/20 h-12 w-12 rounded-full transition-all"
+            >
+              <div className="relative">
+                <Trash2 className="w-5 h-5" />
+                <Cloud className="w-3 h-3 absolute -top-1 -right-1" />
+              </div>
+            </Button>
+          )}
         </div>
 
         {/* Sliding Foreground Content */}
         <motion.div
           initial={false}
-          animate={{ x: isMenuOpen ? -140 : 0 }}
+          animate={{ x: isMenuOpen ? (track.driveFileId ? -180 : -120) : 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 40 }}
           className={cn(
             "relative z-10 w-full flex items-center p-4 rounded-xl transition-colors duration-300 text-left border-[1.5px] cursor-pointer",
@@ -1387,7 +1735,10 @@ export default function App() {
                         <div className="flex flex-col space-y-4">
                           <div className="space-y-3">
                             <button
-                              onClick={() => setCurrentView('library')}
+                              onClick={async () => {
+                                const ok = await requireGoogleLogin();
+                                if (ok) setCurrentView('library');
+                              }}
                               className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-sm shadow-black/40"
                             >
                               <Library className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
@@ -1400,7 +1751,10 @@ export default function App() {
 
                           <div className="space-y-3">
                             <button
-                              onClick={() => fileInputRef.current?.click()}
+                              onClick={async () => {
+                                const ok = await requireGoogleLogin();
+                                if (ok) fileInputRef.current?.click();
+                              }}
                               disabled={isTranscribing}
                               className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
                             >

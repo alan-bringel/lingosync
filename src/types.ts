@@ -38,6 +38,10 @@ export interface AudioTrack {
   audioFileName?: string; // Original audio file name used to create this lesson
   language?: string; // Language code (e.g., 'en', 'es', 'fr')
   lessonNumber?: number; // User-defined order number
+  driveFileId?: string; // Google Drive file ID for the lesson JSON
+  driveAudioFileId?: string; // Google Drive file ID for the audio file
+  syncStatus?: 'synced' | 'pending' | 'missing_local' | 'error' | 'cloud_only';
+  lastAccessedAt?: number; // Timestamp for cache eviction (5 most recent kept locally)
 }
 
 declare global {
