@@ -1349,7 +1349,7 @@ export default function App() {
     const confirmed = await showConfirm(
       deleteFromDrive ? "Excluir lição" : "Excluir lição",
       deleteFromDrive 
-        ? "Tem certeza que deseja excluir esta lição deste app E do Google Drive? Esta ação não pode ser desfeita."
+        ? "Tem certeza que deseja excluir esta lição deste app e do Google Drive? Esta ação não pode ser desfeita."
         : "Tem certeza que deseja excluir esta lição deste app? Se ela estiver sincronizada, você poderá baixá-la novamente depois."
     );
     if (!confirmed) return;
@@ -1579,7 +1579,7 @@ export default function App() {
               className={cn(
                 "h-12 w-12 rounded-full transition-all flex items-center justify-center",
                 track.syncStatus === 'synced' ? "text-green-400 hover:bg-green-500/10" : 
-                track.syncStatus === 'missing_local' ? "text-blue-400 hover:bg-blue-500/10" :
+                track.syncStatus === 'missing_local' ? "text-[#827367] hover:bg-[#827367]/10" :
                 track.syncStatus === 'cloud_only' ? "text-yellow-400 hover:bg-yellow-500/10" :
                 track.syncStatus === 'error' ? "text-red-400 hover:bg-red-500/10" :
                 "text-[#827367] hover:text-[#9a8c80] hover:bg-white/5"
@@ -1654,19 +1654,19 @@ export default function App() {
             {isSyncing === track.id && (
               <div className="mt-2 space-y-1">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
-                  <span className="text-xs text-blue-400 font-medium">Baixando da nuvem... {downloadProgress[track.id] || 0}%</span>
+                  <Loader2 className="w-3 h-3 animate-spin text-[#827367]" />
+                  <span className="text-xs text-[#827367] font-medium">Baixando da nuvem... {downloadProgress[track.id] || 0}%</span>
                 </div>
                 <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-blue-500 h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
+                  <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
                 </div>
               </div>
             )}
             {track.syncStatus === 'missing_local' && isSyncing !== track.id && (
-              <p className="text-xs text-blue-400/60 mt-1">Disponível na nuvem — clique para baixar</p>
+              <p className="text-xs text-[#827367]/60 mt-1">Disponível na nuvem — clique para baixar</p>
             )}
             {track.syncStatus === 'error' && isSyncing !== track.id && (
-              <p className="text-xs text-red-400/60 mt-1">Erro ao sincronizar — clique na nuvem para tentar novamente</p>
+              <p className="text-xs text-[#827367]/60 mt-1">Erro ao sincronizar — clique na nuvem para tentar novamente</p>
             )}
           </div>
 
