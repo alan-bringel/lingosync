@@ -127,37 +127,22 @@ class GoogleDriveService {
 
   async trySilentLogin() {
     if (!this.accessToken) return false;
+    if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
+      this.logout();
+      return false;
+    }
     const storedScopes = localStorage.getItem("google_drive_scopes");
     if (storedScopes !== this.getRequiredScopesHash()) {
       this.logout();
       return false;
     }
-    return new Promise<boolean>((resolve) => {
-      if (!this.tokenClient) {
-        resolve(false);
-        return;
-      }
-      this.tokenClient.callback = async (response: any) => {
-        if (response.error || !response.access_token) {
-          this.logout();
-          resolve(false);
-          return;
-        }
-        this.setTokens(response);
-        const userInfo = await this.getUserInfo();
-        if (!userInfo) {
-          this.logout();
-          resolve(false);
-          return;
-        }
-        resolve(true);
-      };
-      try {
-        this.tokenClient.requestAccessToken({ prompt: "" });
-      } catch {
-        resolve(false);
-      }
-    });
+    const userInfo = await this.getUserInfo();
+    if (!userInfo) {
+      this.logout();
+      return false;
+    }
+    this._userInfo = userInfo;
+    return true;
   }
 
   logout() {
