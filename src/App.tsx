@@ -7,7 +7,7 @@ const ScrollArea = ({ children, className }: any) => <div className={className} 
 // import { Badge } from "@/components/ui/badge";
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
-import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2 } from "lucide-react";
+import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
 import { motion, AnimatePresence, useMotionValue } from "motion/react";
@@ -40,19 +40,83 @@ const SUPPORTED_LANGUAGES: Language[] = [
 
 const MAX_WORDS_PER_SEGMENT = 15;
 
-const LingoSyncLogo = ({ className = "w-8 h-8" }: { className?: string }) => (
-  <img
-    src="/logo-ligosync.svg"
-    alt="LingoSync Logo"
-    className={className}
-    style={{ objectFit: 'contain' }}
-  />
+const LingoSyncLogo = ({ className = "w-10 h-10" }: { className?: string }) => (
+  <div className={cn("relative flex items-center justify-center", className)}>
+    <svg viewBox="0 0 24 24" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Simple L at the left */}
+      <text 
+        x="2" 
+        y="17" 
+        fill="#827367" 
+        fontSize="11" 
+        fontWeight="900" 
+        style={{ fontFamily: 'sans-serif' }}
+      >
+        L
+      </text>
+
+      {/* Real Compass Icon - Shifted to center-right */}
+      <g transform="translate(2, 1)">
+        <g stroke="#827367" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+          {/* Left leg with needle point */}
+          <path d="M8 5L4 16" />
+          <path d="M4 16L3.5 18" strokeWidth="0.8" />
+          
+          {/* Right leg with pencil/pen holder */}
+          <path d="M8 5L12 16" />
+          <path d="M12 16L12.5 18" strokeWidth="2.5" />
+          
+          {/* Hinge and handle */}
+          <circle cx="8" cy="5" r="1" fill="#827367" stroke="none" />
+          <path d="M8 5V3" strokeWidth="1.8" />
+          
+          {/* Adjustment screw/arc */}
+          <path d="M5.5 11C6.5 10.5 9.5 10.5 10.5 11" strokeWidth="0.6" opacity="0.6" />
+          <circle cx="8" cy="10.8" r="0.6" fill="#827367" stroke="none" />
+        </g>
+      </g>
+      
+      {/* Small s above 文 character - Moved higher to avoid touching - Slightly larger */}
+      <text 
+        x="15.5" 
+        y="9" 
+        fill="#827367" 
+        fontSize="7.5" 
+        fontWeight="900" 
+        style={{ fontFamily: 'sans-serif' }}
+      >
+        s
+      </text>
+
+      {/* 文 character - Sharing the right space - Slightly smaller */}
+      <text 
+        x="15" 
+        y="17" 
+        fill="#827367" 
+        fontSize="8" 
+        fontWeight="900" 
+        style={{ fontFamily: 'sans-serif' }}
+      >
+        文
+      </text>
+    </svg>
+  </div>
 );
 
-function LanguageSelector({ currentLanguage, onLanguageChange, exclude }: { currentLanguage: string, onLanguageChange: (code: string) => void, exclude?: string }) {
+function LanguageSelector({ currentLanguage, onLanguageChange, exclude, className }: { currentLanguage: string, onLanguageChange: (code: string) => void, exclude?: string, className?: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedLang = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage) || SUPPORTED_LANGUAGES[0];
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const dropdownWidth = 120;
+      setAlignRight(rect.right + dropdownWidth > viewportWidth);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -68,7 +132,7 @@ function LanguageSelector({ currentLanguage, onLanguageChange, exclude }: { curr
     <div className="relative inline-block" ref={containerRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-1 text-[#827367] hover:text-[#9a8c80] transition-colors focus:outline-none text-xs uppercase tracking-widest font-bold"
+        className={cn("flex items-center space-x-1 hover:opacity-80 transition-opacity focus:outline-none uppercase tracking-widest", className || "text-xs font-bold text-[#827367]")}
       >
         <span>{selectedLang.label}</span>
         <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", isOpen && "rotate-180")} />
@@ -80,7 +144,10 @@ function LanguageSelector({ currentLanguage, onLanguageChange, exclude }: { curr
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="absolute left-0 top-full mt-2 z-[100] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-1 min-w-[80px] overflow-hidden"
+            className={cn(
+              "absolute top-full mt-2 z-[100] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-1 min-w-[80px] overflow-hidden",
+              alignRight ? "right-0" : "left-0"
+            )}
           >
             {SUPPORTED_LANGUAGES.filter(l => l.code !== exclude).map((lang) => (
               <button
@@ -90,7 +157,7 @@ function LanguageSelector({ currentLanguage, onLanguageChange, exclude }: { curr
                   setIsOpen(false);
                 }}
                 className={cn(
-                  "w-full text-left px-4 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-white/5 transition-colors",
+                  "w-full text-left px-4 py-2 text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors",
                   currentLanguage === lang.code ? "text-[#827367] bg-[#827367]/5" : "text-gray-400"
                 )}
               >
@@ -1035,42 +1102,66 @@ export default function App() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             {currentView === 'library' ? (
-              <Badge variant="ghost" className="text-xs font-bold uppercase tracking-widest text-[#827367] bg-transparent border-[1.5px] border-white/10 px-4 py-1.5 h-10 rounded-full flex items-center justify-center leading-none shrink-0 gap-3 w-[215px]">
-                <span className="text-xs font-bold opacity-70">Língua nativa</span>
+              <Badge variant="ghost" className="bg-transparent border-none p-0 h-10 flex items-center justify-center shrink-0 gap-4 w-fit">
+                <span className="text-2xl font-bold tracking-tight text-gray-500">Língua nativa</span>
                 <div className="w-[1px] h-3 bg-[#827367]/30" />
-                <LanguageSelector currentLanguage={nativeLanguage} onLanguageChange={setNativeLanguage} exclude={currentLanguage} />
+                <LanguageSelector currentLanguage={nativeLanguage} onLanguageChange={setNativeLanguage} exclude={currentLanguage} className="text-sm font-bold text-gray-500" />
               </Badge>
             ) : (
               <>
-                <h1 className="text-2xl font-bold tracking-tight text-gray-300">LingoSync</h1>
-                <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center shrink-0 aspect-square">
-                  <LingoSyncLogo className="w-8 h-8 text-[#827367]" />
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center shrink-0 aspect-square">
+                    <LingoSyncLogo className="w-8 h-8 text-[#827367]" />
+                  </div>
+                  <h1 className="text-2xl font-bold tracking-tight text-gray-300">LingoSync</h1>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowHelp(true)}
+                    className="text-gray-600 hover:text-gray-300 h-8 w-8"
+                    title="Guia LingoSync"
+                  >
+                    <Info className="w-4 h-4" />
+                  </Button>
                 </div>
               </>
             )}
           </div>
-          <div className="flex items-center space-x-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowHelp(true)}
-              className="text-gray-600 hover:text-gray-300 h-8 w-8"
-            >
-              <Info className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowSettings(true)}
-              className="text-gray-600 hover:text-gray-300 h-8 w-8"
-            >
-              <Settings2 className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center space-x-3">
+              {currentView === 'home' && (
+                <>
+                  {/* Credits Counter - Styled like the vocabulary badge - text-base like header phrase - Height matched to avatar */}
+                  <Badge variant="ghost" className="text-base font-normal tracking-tight text-[#827367] bg-[#827367]/20 border-none px-4 py-1 h-10 rounded-full flex items-center justify-center leading-none shrink-0 gap-2">
+                    <AudioLines className="w-3.5 h-3.5" />
+                    <span>10</span>
+                  </Badge>
+
+                  {/* User Avatar Placeholder - Neutral Blue with initial A - Size matched to logo circle - No shadow */}
+                  <div 
+                    className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:opacity-90 transition-opacity shrink-0"
+                    title="Usuário Logado"
+                    onClick={() => {/* TODO: Implement Google Login logic here */}}
+                  >
+                    A
+                  </div>
+                </>
+              )}
+  
+              {currentView === 'library' && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowSettings(true)}
+                className="text-gray-600 hover:text-gray-300 h-8 w-8"
+              >
+                <Settings2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
-        <p className="text-gray-500 text-sm font-medium tracking-tight">
+        <p className="text-gray-500 text-base font-medium tracking-tight">
           {currentView === 'home'
-            ? `Aprenda ${getLanguageName(currentLanguage)} de forma divertida com legendas do seu conteúdo preferido`
+            ? `Aprenda idiomas de forma divertida com legendas do seu conteúdo favorito`
             : "Selecione uma lição para começar"}
         </p>
       </div>
@@ -1162,7 +1253,7 @@ export default function App() {
             <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? index + 1}</span>
           </div>
           <div className="ml-5 flex-1 overflow-hidden pr-8">
-            <p className={cn("text-base font-medium truncate transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
+            <p className={cn("text-xl font-semibold truncate transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
               {track.title}
             </p>
           </div>
@@ -1198,12 +1289,12 @@ export default function App() {
     return (
       <div className="flex-1 flex flex-col space-y-6 min-h-0">
         <div className="flex items-center justify-between border-b-[1.5px] border-white/10 pb-4 mt-2">
-          <div className="flex items-center text-xs uppercase tracking-widest h-10 font-bold text-[#827367]">
+          <div className="flex items-center text-sm uppercase tracking-widest h-10 font-bold text-[#827367]">
             <Library className="w-4 h-4 mr-2" />
             Biblioteca
           </div>
           <div className="flex items-center space-x-2">
-            <Badge variant="ghost" className="text-xs uppercase tracking-widest font-bold text-[#827367] bg-transparent border-none p-0">
+            <Badge variant="ghost" className="text-sm uppercase tracking-widest font-bold text-[#827367] bg-transparent border-none p-0">
               {sortedPlaylist.length} {sortedPlaylist.length === 1 ? 'lição' : 'lições'}
             </Badge>
           </div>
@@ -1220,7 +1311,7 @@ export default function App() {
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-40">
                 <Library className="w-12 h-12 text-gray-600" />
-                <p className="text-sm">Nenhuma lição encontrada para este idioma.</p>
+                <p className="text-base">Nenhuma lição encontrada para este idioma.</p>
               </div>
             )}
           </div>
@@ -1266,7 +1357,7 @@ export default function App() {
         )}>
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full animate-pulse transition-opacity duration-1000">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#827367]">Sincronizando Biblioteca...</p>
+              <p className="text-base font-bold uppercase tracking-widest text-[#827367]">Sincronizando Biblioteca...</p>
             </div>
           ) : (
             <>
@@ -1289,12 +1380,12 @@ export default function App() {
                           <div className="space-y-3">
                             <button
                               onClick={() => setCurrentView('library')}
-                              className="w-full flex items-center justify-center py-4 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-sm shadow-black/40"
+                              className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-sm shadow-black/40"
                             >
                               <Library className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
                               <div className="flex flex-col items-center text-center">
                                 <span className="text-sm font-bold uppercase tracking-widest text-[#827367]">Acessar Biblioteca de Lições</span>
-                                <span className="text-sm font-normal opacity-70 mt-1">Estude e exporte suas lições para salvar</span>
+                                <span className="text-base font-normal opacity-70">Estude e gerencie suas lições</span>
                               </div>
                             </button>
                           </div>
@@ -1303,16 +1394,16 @@ export default function App() {
                             <button
                               onClick={() => fileInputRef.current?.click()}
                               disabled={isTranscribing}
-                              className="w-full flex items-center justify-center py-4 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
+                              className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
                             >
                               <AudioLines className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
                               <div className="flex flex-col items-center text-center">
                                 <span className="text-sm font-bold uppercase tracking-widest">
                                   {isTranscribing
                                     ? (transcribePercent > 90 ? "Sincronizando..." : `Progresso: ${Math.round(transcribePercent)}%`)
-                                    : "Gerar Lição (Importar Áudio)"}
+                                    : "GERAR LIÇÃO (TEXTO OU ÁUDIO)"}
                                 </span>
-                                <span className="text-sm font-normal opacity-70 mt-1">Recomendado: 1 a 3 min. Máximo: 5 min.</span>
+                                <span className="text-base font-normal opacity-70">Recomendado: 1 a 3 min. Máx: 5 min.</span>
                               </div>
                             </button>
                           </div>
@@ -1321,24 +1412,17 @@ export default function App() {
                         {/* Home Content Box */}
                         <div className="flex-1 flex flex-col items-center justify-center bg-[#0d0d0d] rounded-3xl border-[1.5px] border-white/10 p-8 sm:p-12 text-center space-y-8 shadow-2xl relative overflow-hidden">
                           <div className="absolute inset-0 bg-radial-gradient from-[#443a32]/10 to-transparent opacity-50" />
+                          
                           <div className="relative z-10 space-y-8 flex flex-col items-center">
                             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/[0.02] flex items-center justify-center border-[1.5px] border-white/10 shadow-inner">
                               <LingoSyncLogo className="w-14 h-14 sm:w-16 sm:h-16" />
                             </div>
                             <div className="space-y-4">
                               <h2 className="text-3xl font-bold text-gray-100 tracking-tight">Bem-vindo ao LingoSync</h2>
-                              <p className="text-gray-400 text-sm max-w-sm mx-auto leading-relaxed">
-                                Transforme seus áudios favoritos em lições de inglês poderosas. Com o <b>LingoSync</b>, você aprende de forma natural usando legendas inteligentes e traduções precisas, seguindo o método comprovado de <b>Input Compreensivo</b>.
+                              <p className="text-gray-400 text-base max-w-sm mx-auto leading-relaxed">
+                                Transforme seus áudios favoritos em lições poderosas para aprender idiomas. Com o <b>LingoSync</b>, você aprende naturalmente com legendas inteligentes e interativas, usando o método comprovado do <b>Input Compreensivo</b>.
                               </p>
                             </div>
-                            <button
-                              onClick={() => importInputRef.current?.click()}
-                              disabled={isImporting}
-                              className="max-w-sm w-full flex items-center justify-center p-4 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-xl shadow-black/60 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {isImporting ? <Loader2 className="w-5 h-5 mr-3 animate-spin text-[#827367]" /> : <Upload className="w-5 h-5 mr-3 group-hover:scale-110 transition-transform text-[#827367]" />}
-                              <span className="text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">{isImporting ? 'Importando...' : 'Importar Lição (.lsync.json)'}</span>
-                            </button>
                           </div>
                         </div>
                       </div>
@@ -1364,10 +1448,10 @@ export default function App() {
                           <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
                           <span>Início</span>
                         </Button>
-                        <Badge variant="ghost" className="text-xs font-bold uppercase tracking-widest text-[#827367] bg-[#827367]/20 border-none px-4 py-1.5 h-10 rounded-full flex items-center justify-center leading-none shrink-0 gap-3">
-                          <LanguageSelector currentLanguage={currentLanguage} onLanguageChange={setCurrentLanguage} exclude={nativeLanguage} />
-                          <div className="w-[1px] h-3 bg-[#827367]/30" />
+                        <Badge variant="ghost" className="text-sm font-bold uppercase tracking-widest text-[#827367] bg-[#827367]/20 border-none px-4 py-1.5 h-10 rounded-full flex items-center justify-center leading-none shrink-0 gap-3">
                           <span>VOCABULÁRIO: {globalKnownWords.length}</span>
+                          <div className="w-[1px] h-3 bg-[#827367]/30" />
+                          <LanguageSelector currentLanguage={currentLanguage} onLanguageChange={setCurrentLanguage} exclude={nativeLanguage} className="text-sm font-bold" />
                         </Badge>
                       </div>
                       <SidebarHeader />
@@ -1519,9 +1603,6 @@ export default function App() {
                         <AudioLines className="w-3 h-3 mr-2" />
                         AssemblyAI API Key
                       </label>
-                      <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
-                        Transcrição
-                      </span>
                     </div>
                     <div className="relative">
                       <input
@@ -1532,7 +1613,7 @@ export default function App() {
                         className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                    <p className="text-base text-gray-500 leading-relaxed italic">
                       Usada exclusivamente para transcrição de áudio. Salva apenas no seu navegador.
                     </p>
                   </div>
@@ -1544,9 +1625,6 @@ export default function App() {
                         <Database className="w-3 h-3 mr-2" />
                         DeepSeek API Key
                       </label>
-                      <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
-                        Inteligência · DeepSeek V3
-                      </span>
                     </div>
                     <div className="relative">
                       <input
@@ -1557,7 +1635,7 @@ export default function App() {
                         className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                    <p className="text-base text-gray-500 leading-relaxed italic">
                       Usada para tradução e organização. Modelo DeepSeek V3.
                     </p>
                   </div>
@@ -1569,9 +1647,6 @@ export default function App() {
                         <Key className="w-3 h-3 mr-2" />
                         Google Cloud API Key (TTS)
                       </label>
-                      <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
-                        Narração · Flashcards
-                      </span>
                       <a 
                         href="https://console.cloud.google.com/apis/api/texttospeech.googleapis.com/quotas"
                         target="_blank"
@@ -1591,120 +1666,12 @@ export default function App() {
                         className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                    <p className="text-base text-gray-500 leading-relaxed italic">
                       Usada para a narração profissional dos flashcards (Vozes Neural2).
                     </p>
                   </div>
 
-                  {/* TTS Worker URL */}
-                  <div className="space-y-3 pt-4 border-t border-white/5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
-                        <Link2 className="w-3 h-3 mr-2" />
-                        TTS Proxy Worker URL
-                      </label>
-                      <span className="text-[9px] font-bold uppercase tracking-widest bg-[#827367]/15 text-[#a39487] border border-[#827367]/20 rounded-full px-2 py-0.5">
-                        Narração (TTS) · Google Cloud
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={ttsWorkerUrl}
-                        onChange={(e) => setTtsWorkerUrl(e.target.value)}
-                        placeholder="https://seu-worker.workers.dev"
-                        className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-base text-gray-300 focus:outline-none focus:border-white/20 transition-colors"
-                      />
-                    </div>
-                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
-                      URL do seu Cloudflare Worker que faz o proxy para a Google Cloud TTS API (Neural2).
-                    </p>
-                  </div>
-
-                  {/* Dashboard Links Footer */}
-                  <div className="pt-6 border-t border-white/10 space-y-4 bg-white/[0.02] -mx-6 -mb-6 p-6">
-                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-4">Atalhos de Consumo</h4>
-
-                    {/* AssemblyAI */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">AssemblyAI</span>
-                      <div className="flex items-center space-x-4">
-                        <a href="https://www.assemblyai.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                          Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
-                        </a>
-                        <a href="https://www.assemblyai.com/dashboard/cost" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                          Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* DeepSeek */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">DeepSeek</span>
-                      <div className="flex items-center space-x-4">
-                        <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                          Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
-                        </a>
-                        <a href="https://platform.deepseek.com/usage" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                          Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* Gemini */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Google Gemini</span>
-                      <div className="flex items-center space-x-4">
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                          Obter Chave <ExternalLink className="w-3 h-3 ml-1" />
-                        </a>
-                        <a href="https://aistudio.google.com/app/plan" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] flex items-center uppercase tracking-widest">
-                          Ver Consumo <ExternalLink className="w-3 h-3 ml-1" />
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-4 border-t border-white/5">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
-                      <Key className="w-3 h-3 mr-2" />
-                      Faturamento Ativo
-                    </label>
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/10 gap-4">
-                      <div className="space-y-1 flex-1">
-                        <p className="text-sm font-bold text-gray-200">
-                          Tenho faturamento configurado na minha conta
-                        </p>
-                        <p className="text-[10px] text-gray-500 leading-relaxed">
-                          Se ativado, os limites gratuitos não serão aplicados. Use apenas se você tiver uma forma de pagamento configurada no Google AI Studio.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setHasBillingEnabled(!hasBillingEnabled)}
-                        className={`relative w-11 h-6 rounded-full transition-all duration-300 flex-shrink-0 focus:outline-none ${hasBillingEnabled ? 'bg-[#827367] shadow-[0_0_10px_rgba(130,115,103,0.3)]' : 'bg-gray-800'
-                          }`}
-                      >
-                        <div
-                          className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${hasBillingEnabled ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
                   <div className="pt-4 border-t border-white/5 space-y-4">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <p className="text-sm font-bold text-gray-300 flex items-center">
-                          <Database className="w-4 h-4 mr-2" /> Gerenciar Espaço
-                        </p>
-                        <p className="text-[10px] text-gray-500 leading-relaxed">
-                          Se notar lentidão, o app pode estar sobrecarregado. Recomendamos exportar e excluir lições já dominadas para liberar espaço. Na biblioteca, basta arrastar a lição para a esquerda para acessar as opções de exportar e excluir.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-white/5 space-y-4">
                       <div className="space-y-1">
                         <p className="text-sm font-bold text-gray-300 flex items-center">
                           <RefreshCw className="w-4 h-4 mr-2 text-gray-500" />
@@ -1747,7 +1714,6 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                </div>
               </motion.div>
             </motion.div>
           )}
@@ -1872,19 +1838,19 @@ export default function App() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
                           <p className="text-sm font-bold text-gray-300">Transcrição Inteligente</p>
-                          <p className="text-[11px] text-gray-500">Basta subir seu áudio (MP3 ou WAV) e o <b>LingoSync</b> gera as legendas em inglês e português na hora para você.</p>
+                          <p className="text-base text-gray-500">Basta subir seu áudio (MP3 ou WAV) e o <b>LingoSync</b> gera as legendas em inglês e português na hora para você.</p>
                         </div>
                         <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
                           <p className="text-sm font-bold text-gray-300">Personalize sua Lição</p>
-                          <p className="text-[11px] text-gray-500">Clique em qualquer frase para ajustar o texto. Use o <b>Enter</b> para dividir uma frase longa em duas partes menores.</p>
+                          <p className="text-base text-gray-500">Clique em qualquer frase para ajustar o texto. Use o <b>Enter</b> para dividir uma frase longa em duas partes menores.</p>
                         </div>
                         <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
                           <p className="text-sm font-bold text-gray-300">Sincronização Avançada</p>
-                          <p className="text-[11px] text-gray-500">O botão <b>Ajustar Tradução</b> utiliza a inteligência do <b>LingoSync</b> para alinhar sua edição perfeitamente.</p>
+                          <p className="text-base text-gray-500">O botão <b>Ajustar Tradução</b> utiliza a inteligência do <b>LingoSync</b> para alinhar sua edição perfeitamente.</p>
                         </div>
                         <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
                           <p className="text-sm font-bold text-gray-300">Leve suas Lições com Você</p>
-                          <p className="text-[11px] text-gray-500">Exporte suas lições como arquivos <b>.lsync.json</b> e estude em qualquer outro dispositivo quando quiser.</p>
+                          <p className="text-base text-gray-500">Exporte suas lições como arquivos <b>.lsync.json</b> e estude em qualquer outro dispositivo quando quiser.</p>
                         </div>
                       </div>
                     </section>
@@ -1894,18 +1860,18 @@ export default function App() {
                         <Key className="w-5 h-5" />
                         <h4 className="font-bold">Poder e Controle Total no Seu Bolso</h4>
                       </div>
-                      <p className="text-[13px] text-gray-300 leading-relaxed font-medium">
+                      <p className="text-base text-gray-300 leading-relaxed font-medium">
                         Com o <b>LingoSync</b>, você é o dono da sua jornada. Diferente de outros apps com assinaturas caras, aqui você tem uma <b>ferramenta poderosa</b> sob seu comando absoluto.
                       </p>
                       <div className="space-y-3 bg-[#0d0d0d] p-4 rounded-xl border border-white/5">
-                        <p className="text-[12px] text-gray-400">
+                        <p className="text-base text-gray-400">
                           <b>Economia Real:</b> Ao usar sua própria chave, você paga apenas pelo que consome. Transcrever <b>uma hora inteira de áudio</b> custa apenas <b>alguns centavos de dólar</b>.
                         </p>
-                        <p className="text-[12px] text-gray-400">
+                        <p className="text-base text-gray-400">
                           <b>Segurança Financeira:</b> No painel do Google, você pode definir um <b>limite mensal</b> (como $1 ou $5 dólares). Assim, você aproveita o <b>LingoSync</b> com total previsibilidade.
                         </p>
                       </div>
-                      <p className="text-[12px] text-gray-400 leading-relaxed">
+                      <p className="text-base text-gray-400 leading-relaxed">
                         Essa solução foi desenvolvida para revolucionar o custo-benefício no aprendizado de idiomas. Tudo é transparente para sua tranquilidade e satisfação em primeiro lugar. Ah, o <b>LingoSync</b> processa tudo de forma <b>local</b> e seus áudios nunca saem do seu <b>dispositivo</b>.
                       </p>
                     </section>
@@ -1915,7 +1881,7 @@ export default function App() {
                         <Shield className="w-5 h-5" />
                         <h4 className="font-bold">Termos e Privacidade</h4>
                       </div>
-                      <div className="space-y-4 text-[11px] text-gray-500 leading-relaxed">
+                      <div className="space-y-4 text-base text-gray-500 leading-relaxed">
                         <p>
                           <b>1. Uso do Serviço:</b> O <b>LingoSync</b> é uma ferramenta de auxílio ao estudo de idiomas. Ao utilizá-lo, você concorda com o processamento <b>local</b> de seus dados para fins educacionais.
                         </p>
@@ -1967,24 +1933,24 @@ export default function App() {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <h3 className="text-xl font-bold text-gray-200">Chave API do Google necessária</h3>
-                      <p className="text-[10px] text-gray-500 leading-relaxed font-medium">
+                      <p className="text-base text-gray-500 leading-relaxed font-medium">
                         Ao criar sua API, o plano gratuito é ativado por padrão. Para uso além do limite gratuito diário, o Google solicitará a configuração de um método de pagamento.
                       </p>
-                      <p className="text-[11px] text-[#827367] leading-relaxed uppercase tracking-widest font-bold pt-1">Tutorial rápido em 3 passos:</p>
+                      <p className="text-base text-[#827367] leading-relaxed uppercase tracking-widest font-bold pt-1">Tutorial rápido em 3 passos:</p>
                     </div>
 
                     <div className="text-left space-y-3">
                       <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
-                        <p className="text-[12px] text-gray-400 leading-tight">Acesse o <b>Google AI Studio</b> através do link abaixo ou nas configurações.</p>
+                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-base font-bold shrink-0 mt-0.5">1</div>
+                        <p className="text-base text-gray-400 leading-tight">Acesse o <b>Google AI Studio</b> através do link abaixo ou nas configurações.</p>
                       </div>
                       <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
-                        <p className="text-[12px] text-gray-400 leading-tight">Escolha <b>"Create API key in new project"</b>. Ignore opções como "projeto importado" para ser mais rápido.</p>
+                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-base font-bold shrink-0 mt-0.5">2</div>
+                        <p className="text-base text-gray-400 leading-tight">Escolha <b>"Create API key in new project"</b>. Ignore opções como "projeto importado" para ser mais rápido.</p>
                       </div>
                       <div className="flex items-start space-x-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
-                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">3</div>
-                        <p className="text-[12px] text-gray-400 leading-tight">Clique em <b>"Configurar Chave"</b> e cole o código no campo de senha.</p>
+                        <div className="w-5 h-5 rounded-full bg-[#827367]/20 text-[#827367] flex items-center justify-center text-base font-bold shrink-0 mt-0.5">3</div>
+                        <p className="text-base text-gray-400 leading-tight">Clique em <b>"Configurar Chave"</b> e cole o código no campo de senha.</p>
                       </div>
                     </div>
                   </div>
@@ -2039,7 +2005,7 @@ export default function App() {
                   </div>
                   <div className="space-y-4">
                     <h3 className="text-xl font-bold text-gray-200">Falha ao gerar som do flashcard</h3>
-                    <p className="text-[12px] text-gray-400 leading-relaxed">
+                    <p className="text-base text-gray-400 leading-relaxed">
                       {audioErrorMessage || "Não foi possível gerar a pronúncia desta palavra no momento."}
                     </p>
                   </div>
@@ -2079,11 +2045,11 @@ export default function App() {
                   <div className="space-y-4">
                     <h3 className="text-xl font-bold text-gray-200">Áudio não encontrado</h3>
                     <div className="text-left space-y-3">
-                      <p className="text-[12px] text-gray-400 leading-relaxed">
+                      <p className="text-base text-gray-400 leading-relaxed">
                         Não conseguimos localizar o áudio original desta lição. Isso pode acontecer se o arquivo foi <b>renomeado</b>, <b>movido</b> ou <b>excluído</b> do seu dispositivo.
                       </p>
                       <div className="p-4 rounded-2xl bg-[#827367]/5 border border-[#827367]/10 space-y-3">
-                        <p className="text-[11px] text-[#a39487] font-medium">
+                        <p className="text-base text-[#a39487] font-medium">
                           Para ouvir o áudio, selecione a pasta onde o arquivo <b>{currentTrack?.audioFileName || "original"}</b> está localizado.
                         </p>
                         <Button
@@ -2097,7 +2063,7 @@ export default function App() {
                             }
                           }}
                           disabled={isSyncingAudio}
-                          className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-100 font-bold uppercase tracking-widest text-[10px] h-10 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-lg shadow-[#827367]/10"
+                          className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-100 font-bold uppercase tracking-widest text-base h-10 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-lg shadow-[#827367]/10"
                         >
                           {isSyncingAudio ? (
                             <>
@@ -2116,7 +2082,7 @@ export default function App() {
                             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                               <div className="h-full bg-[#827367] transition-all duration-200" style={{ width: `${syncProgress}%` }} />
                             </div>
-                            <p className="text-[11px] text-gray-400 uppercase tracking-[0.2em] mt-2">
+                            <p className="text-base text-gray-400 uppercase tracking-[0.2em] mt-2">
                               {syncProgress}% concluído
                             </p>
                           </div>
@@ -2129,7 +2095,7 @@ export default function App() {
                       setShowMissingAudioModal(false);
                       setCurrentView('library');
                     }}
-                    className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors"
+                    className="text-base font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors"
                   >
                     Biblioteca
                   </button>

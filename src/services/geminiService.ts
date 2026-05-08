@@ -177,7 +177,8 @@ Rules:
 - Others lowercase.
 - Translation: Use natural, common ${langName} terms.
 - Explanation: Provide a brief explanation in ${langName} about usage, grammar or context.
-- CRITICAL: Always use proper UTF-8 encoding and CORRECT ACCENTUATION (e.g., "através" NOT "atrav1s").
+- CRITICAL: Use ONLY standard UTF-8 characters. NEVER replace accented letters with numbers or symbols (e.g., use "Preposição" NOT "Preposi'3o", use "através" NOT "atrav1s"). 
+- Ensure all Portuguese accents (á, é, í, ó, ú, â, ê, ô, ã, õ, ç) are correctly rendered.
 - Return MINIFIED JSON array: expression, translation, explanation.`;
 
     const resultText = await callDeepSeekChat(
@@ -189,10 +190,27 @@ Rules:
     const items = JSON.parse(resultText);
     const flashcardsArray = Array.isArray(items) ? items : (items.flashcards || items.data || []);
 
-    return flashcardsArray.map((item: any, idx: number) => ({
-      ...item,
-      id: `fc-${idx}-${Date.now()}`
-    }));
+    return flashcardsArray.map((item: any, idx: number) => {
+      // Post-process to fix common DeepSeek encoding hallucinations in Portuguese
+      let translation = item.translation || "";
+      let explanation = item.explanation || "";
+
+      const fixEncoding = (text: string) => {
+        return text
+          .replace(/Preposi'3o/g, "Preposição")
+          .replace(/atrav1s/g, "através")
+          .replace(/'3o\b/g, "ção")
+          .replace(/'3/g, "çã")
+          .replace(/1s\b/g, "és");
+      };
+
+      return {
+        ...item,
+        translation: fixEncoding(translation),
+        explanation: fixEncoding(explanation),
+        id: `fc-${idx}-${Date.now()}`
+      };
+    });
   } catch (error: any) {
     console.error("Error extracting flashcards with DeepSeek:", error);
     return [];

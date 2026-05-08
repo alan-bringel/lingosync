@@ -116,7 +116,7 @@ export function RateLimitModal({ isVisible, secondsRemaining, model, isDailyLimi
             </div>
 
             {/* Mensagem informativa */}
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center flex items-center justify-center gap-2">
+            <p className="text-base text-gray-500 dark:text-gray-400 text-center flex items-center justify-center gap-2">
               <Zap className="w-4 h-4" />
               {isDailyLimit 
                 ? 'Aguarde o reset do limite (meia-noite horário do Pacífico) ou use uma conta diferente'

@@ -76,10 +76,10 @@ export function VideoSyncModal({ isOpen, onClose, onContinue, onRemove, isProces
                 <p className="text-xs font-bold uppercase tracking-tight">Vincular Conteúdo Visual</p>
               </div>
               <div className="space-y-2">
-                <p className="text-xs text-gray-300 leading-relaxed font-medium">
+                <p className="text-base text-gray-300 leading-relaxed font-medium">
                   Esta etapa é <b>opcional</b>. Adicione um vídeo apenas se desejar sincronizar o áudio da sua lição com o conteúdo visual original.
                 </p>
-                <p className="text-[11px] text-gray-400 leading-relaxed italic">
+                <p className="text-base text-gray-400 leading-relaxed italic">
                   O vídeo local (offline) é processado apenas no seu dispositivo, sem pesar no arquivo de exportação.
                 </p>
               </div>
@@ -100,17 +100,17 @@ export function VideoSyncModal({ isOpen, onClose, onContinue, onRemove, isProces
               </div>
 
               <div className="relative">
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <div className="w-full border-t border-white/5"></div>
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-white/5"></span>
                 </div>
                 <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
-                  <span className="bg-[#161616] px-2 text-gray-600">ou vídeo offline</span>
+                  <span className="bg-[#161616] px-4 text-gray-600">ou</span>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center">
-                  <Upload className="w-3 h-3 mr-2" /> Arquivo de Vídeo Local
+                  <Upload className="w-3 h-3 mr-2" /> Selecionar Arquivo Local
                 </label>
                 <input 
                   type="file"
@@ -137,19 +137,19 @@ export function VideoSyncModal({ isOpen, onClose, onContinue, onRemove, isProces
               </div>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 space-y-3">
               <button 
                 type="submit"
-                disabled={(!url && !videoFile) || isProcessing}
+                disabled={isProcessing || (!url.trim() && !videoFile)}
                 className="w-full p-4 rounded-xl bg-[#827367] text-white font-bold text-sm uppercase tracking-widest hover:bg-[#9a8c80] transition-all disabled:opacity-50 flex items-center justify-center"
               >
                 {isProcessing ? (
                   <>
-                    <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Sincronizando...
                   </>
                 ) : (
-                  "Sincronizar"
+                  'Confirmar Sincronização'
                 )}
               </button>
 
@@ -160,7 +160,7 @@ export function VideoSyncModal({ isOpen, onClose, onContinue, onRemove, isProces
                   disabled={isProcessing}
                   className="w-full p-4 mt-2 rounded-xl border border-red-900/20 text-red-500/60 font-bold text-[10px] uppercase tracking-widest hover:bg-red-500/5 transition-all disabled:opacity-30"
                 >
-                  Remover Fonte de Vídeo Atual
+                  Remover Vídeo Atual
                 </button>
               )}
             </div>

@@ -46,7 +46,7 @@ export function QuotaExceededModal({ isOpen, onClose }: QuotaExceededModalProps)
 
               <div className="space-y-2">
                 <h2 className="text-2xl font-bold text-gray-100 tracking-tight">Limite Gratuito Atingido</h2>
-                <p className="text-gray-400 text-sm leading-relaxed">
+                <p className="text-gray-400 text-base leading-relaxed">
                   Você atingiu o limite de quota diária da sua chave gratuita do Gemini.
                 </p>
               </div>
@@ -56,7 +56,7 @@ export function QuotaExceededModal({ isOpen, onClose }: QuotaExceededModalProps)
                   <Calendar className="w-5 h-5 text-[#827367] shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-widest text-gray-300">Aguarde o Reset</h3>
-                    <p className="text-xs text-gray-500 mt-1">O limite gratuito é renovado diariamente (geralmente à meia-noite no fuso do Google).</p>
+                    <p className="text-base text-gray-500 mt-1">O limite gratuito é renovado diariamente (geralmente à meia-noite no fuso do Google).</p>
                   </div>
                 </div>
 
@@ -64,7 +64,7 @@ export function QuotaExceededModal({ isOpen, onClose }: QuotaExceededModalProps)
                   <CreditCard className="w-5 h-5 text-[#827367] shrink-0 mt-0.5" />
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-widest text-gray-300">Uso Ilimitado</h3>
-                    <p className="text-xs text-gray-500 mt-1">Você pode adicionar um método de pagamento no Google Cloud Console para continuar usando sem interrupções.</p>
+                    <p className="text-base text-gray-500 mt-1">Você pode adicionar um método de pagamento no Google Cloud Console para continuar usando sem interrupções.</p>
                   </div>
                 </div>
               </div>
@@ -81,7 +81,7 @@ export function QuotaExceededModal({ isOpen, onClose }: QuotaExceededModalProps)
                 <Button 
                   variant="ghost" 
                   onClick={onClose}
-                  className="w-full text-gray-500 hover:text-gray-300 font-bold uppercase tracking-widest text-[10px]"
+                  className="w-full text-gray-500 hover:text-gray-300 font-bold uppercase tracking-widest text-base"
                 >
                   Entendi, voltarei mais tarde
                 </Button>
@@ -89,7 +89,7 @@ export function QuotaExceededModal({ isOpen, onClose }: QuotaExceededModalProps)
             </div>
             
             <div className="bg-white/5 p-4 text-center border-t border-white/5">
-              <p className="text-[10px] text-gray-600 font-medium">
+              <p className="text-base text-gray-600 font-medium">
                 DICA: Você também pode tentar usar uma chave de outra conta Google.
               </p>
             </div>

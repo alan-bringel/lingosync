@@ -30,6 +30,7 @@ export async function callDeepSeekChat(
           messages,
           temperature: 0.1,
           max_tokens: maxTokens,
+          response_format: responseFormat,
           user: `lingosync_${Date.now()}`
         }),
         signal: controller.signal

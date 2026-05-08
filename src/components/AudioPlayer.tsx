@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { Play, Pause, SkipBack, SkipForward, Languages, ChevronDown, ChevronUp, Download, Edit2, Check, X, Settings2, Clock, Sparkles, Infinity as InfinityIcon, Gauge, Repeat, Youtube, Monitor, MonitorOff, RefreshCw, Loader2 } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Languages, ChevronDown, ChevronUp, Download, Edit2, Check, X, Settings2, Clock, Sparkles, Infinity as InfinityIcon, Gauge, Repeat, Youtube, Monitor, MonitorOff, RefreshCw, Loader2, Book, Edit3 } from "lucide-react";
 
 declare global {
   interface Window {
@@ -56,7 +56,18 @@ function DropdownSelector({
   direction?: "up" | "down";
 }) {
   const [open, setOpen] = useState(false);
+  const [alignLeft, setAlignLeft] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const dropdownWidth = 96;
+      const centerX = rect.left + rect.width / 2;
+      setAlignLeft(centerX - dropdownWidth / 2 >= 0 && centerX + dropdownWidth / 2 <= viewportWidth);
+    }
+  }, [open]);
 
   useEffect(() => {
     const clickOut = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false); }
@@ -82,8 +93,9 @@ function DropdownSelector({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: direction === "up" ? 10 : -10 }}
             className={cn(
-              "absolute left-1/2 -translate-x-1/2 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-1 w-24 z-[100] overflow-hidden",
-              direction === "up" ? "bottom-full mb-2" : "top-full mt-2"
+              "absolute bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-1 w-24 z-[100] overflow-hidden",
+              direction === "up" ? "bottom-full mb-2" : "top-full mt-2",
+              alignLeft ? "left-1/2 -translate-x-1/2" : "right-0"
             )}
           >
             {options.map(opt => (
@@ -112,6 +124,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showTranslations, setShowTranslations] = useState<Record<number, boolean>>({});
+  const [isDictionaryModeGlobal, setIsDictionaryModeGlobal] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const getLanguageNameLabel = (code: string) => {
@@ -354,26 +367,20 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
   const knownWords = useMemo(() => new Set((globalKnownWords || []).map(w => w.toLowerCase())), [globalKnownWords]);
 
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const handleSegmentClick = (e: React.MouseEvent, idx: number, wordIndex?: number, word?: string) => {
     e.stopPropagation();
 
-    if (clickTimeoutRef.current) {
-      // It's a double click - Open Flashcard ONLY if a word was clicked
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-
-      // Pause playback immediately so the user can study in silence, 
-      // but DO NOT change the currentTime (keep the highlight where it is).
-      setIsPlaying(false);
-      if (track.youtubeId && ytPlayerRef.current && isYtReady) {
-        ytPlayerRef.current.pauseVideo?.();
-      } else if (audioRef.current) {
-        audioRef.current.pause();
-      }
-
+    // Dictionary Mode Logic
+    if (isDictionaryModeGlobal) {
       if (word && track.flashcards && onOpenFlashcardAtIndex) {
+        // Pause playback
+        setIsPlaying(false);
+        if (track.youtubeId && ytPlayerRef.current && isYtReady) {
+          ytPlayerRef.current.pauseVideo?.();
+        } else if (audioRef.current) {
+          audioRef.current.pause();
+        }
+
         const lowerSearch = word.toLowerCase().trim();
         let cardIdx = track.flashcards.findIndex(fc =>
           fc.expression.toLowerCase().trim() === lowerSearch
@@ -386,15 +393,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
         onOpenFlashcardAtIndex(cardIdx !== -1 ? cardIdx : 0, idx);
       }
-    } else {
-      // Start single click timer
-      clickTimeoutRef.current = setTimeout(() => {
-        clickTimeoutRef.current = null;
-        // Handle Audio Playback
-        const segment = track.transcript[idx];
-        playSegment(segment.start, segment.end, idx);
-      }, 200); // Slightly faster for audio response
+      return; // Do nothing if it's a general segment click in dictionary mode
     }
+
+    // Normal Mode Logic (Single Click only, double click removed as requested)
+    const segment = track.transcript[idx];
+    playSegment(segment.start, segment.end, idx);
   };
 
   const renderSegmentText = (text: string, isActive: boolean, segmentIdx: number) => {
@@ -439,7 +443,8 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
           onClick={(e) => handleSegmentClick(e, segmentIdx, i, part)}
           className={cn(
             "transition-colors duration-120 ease-in-out cursor-pointer",
-            needsHighlight ? baseColorClass : knownColorClass
+            needsHighlight ? baseColorClass : knownColorClass,
+            isDictionaryModeGlobal && "border-b border-dotted border-[#827367] pb-[1px]"
           )}
         >
           {part}
@@ -867,11 +872,20 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     if (externalJumpToSegmentIndex !== undefined && externalJumpToSegmentIndex !== null) {
       const segment = track.transcript[externalJumpToSegmentIndex];
       if (segment) {
-        playSegment(segment.start, segment.end, externalJumpToSegmentIndex);
-        onJumpedToSegment?.();
+        if (isDictionaryModeGlobal) {
+          // Just scroll, no playback
+          const element = document.getElementById(`segment-${externalJumpToSegmentIndex}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          onJumpedToSegment?.();
+        } else {
+          playSegment(segment.start, segment.end, externalJumpToSegmentIndex);
+          onJumpedToSegment?.();
+        }
       }
     }
-  }, [externalJumpToSegmentIndex, track.transcript]);
+  }, [externalJumpToSegmentIndex, track.transcript, isDictionaryModeGlobal]);
 
   const playSegment = (start: number, end: number, index: number) => {
     const repeats = globalRepeat;
@@ -963,12 +977,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   return (
     <div className="flex flex-col h-full bg-transparent sm:bg-[#0d0d0d] rounded-3xl border-[1.5px] border-white/10 overflow-hidden shadow-2xl">
       {/* Track Info */}
-      <div className="p-4 sm:p-6 flex flex-col bg-white/[0.04] gap-4">
-        <div className="flex items-center space-x-6 w-full">
+      <div className="p-4 sm:p-4 flex flex-col bg-white/[0.04] border-b border-white/5">
+        <div className="flex items-center space-x-4 w-full">
           <motion.div
             key={track.id}
             className={cn(
-              "w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shrink-0 aspect-square ml-1 sm:ml-2 overflow-hidden transition-all duration-300 rounded-full",
+              "w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shrink-0 aspect-square ml-1 overflow-hidden transition-all duration-300 rounded-full",
               isEditModeGlobal
                 ? "bg-white/[0.03] border border-white/10 focus-within:border-white/20"
                 : "bg-[#443a32]/20 border border-white/5"
@@ -992,13 +1006,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     }
                   }
                 }}
-                className="bg-transparent border-none text-center outline-none w-full h-full text-base sm:text-lg font-bold text-[#827367] font-mono cursor-text placeholder:text-[#827367]/30"
+                className="bg-transparent border-none text-center outline-none w-full h-full text-base font-bold text-[#827367] font-mono cursor-text placeholder:text-[#827367]/30"
               />
             ) : (
               <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? trackNumber}</span>
             )}
           </motion.div>
-          <div className="flex-1 min-w-0 space-y-3">
+          <div className="flex-1 min-w-0">
             {isEditModeGlobal ? (
               <input
                 type="text"
@@ -1007,52 +1021,21 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 className="bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1 text-xl font-semibold text-gray-200 tracking-tight w-full outline-none focus:border-white/20 transition-all"
               />
             ) : (
-              <h2 className="text-xl font-semibold text-gray-300 tracking-tight break-words whitespace-normal">{track.title}</h2>
+              <h2 className="text-xl font-semibold text-gray-300 tracking-tight break-words whitespace-normal leading-tight">{track.title}</h2>
             )}
-
-            <div className="flex items-center space-x-4 justify-start -ml-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onPointerDown={handleVideoTouchStart}
-                onPointerUp={handleVideoTouchEnd}
-                onPointerLeave={() => {
-                  if (longPressTimerRef.current) {
-                    clearTimeout(longPressTimerRef.current);
-                    longPressTimerRef.current = null;
-                  }
-                }}
-                className={cn(
-                  "transition-all active:scale-90",
-                  hasVideo && showVideo ? "text-[#827367] hover:text-[#827367]/80" : "text-gray-500 hover:text-gray-200"
-                )}
-                title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
-              >
-                <Youtube className="w-4 h-4 shrink-0" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="default"
-                onClick={() => setIsEditModeGlobal(!isEditModeGlobal)}
-                className={cn(
-                  "text-xs uppercase tracking-widest font-bold flex flex-row items-center whitespace-nowrap",
-                  isEditModeGlobal ? "text-[#827367] hover:text-[#9a8c80]" : "text-gray-500 hover:text-gray-200"
-                )}
-              >
-                <Settings2 className="w-4 h-4 mr-2 shrink-0" />
-                {isEditModeGlobal ? "Sair da Edição" : "Modo Edição"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onExport?.(track)}
-                title="Exportar"
-                className="text-gray-500 hover:text-gray-200"
-              >
-                <Download className="w-4 h-4 shrink-0" />
-              </Button>
-            </div>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsDictionaryModeGlobal(!isDictionaryModeGlobal)}
+            className={cn(
+              "transition-all active:scale-90 w-10 h-10 shrink-0",
+              isDictionaryModeGlobal ? "text-[#827367]" : "text-gray-500 hover:text-gray-200"
+            )}
+            title={isDictionaryModeGlobal ? "Desativar Modo Dicionário" : "Ativar Modo Dicionário"}
+          >
+            <Book className="w-5 h-5 shrink-0" />
+          </Button>
         </div>
       </div>
 
@@ -1082,9 +1065,9 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 bg-stone-900 border border-white/5">
                     <Youtube className="w-12 h-12 text-gray-600 mb-4" />
-                    <p className="text-sm font-bold text-gray-400 mb-2">Vídeo Offline Não Encontrado</p>
+                    <p className="text-base font-bold text-gray-400 mb-2">Vídeo Offline Não Encontrado</p>
                     {track.videoFileName && (
-                      <p className="text-xs text-gray-500 mb-4 italic">
+                      <p className="text-base text-gray-500 mb-4 italic">
                         Esperado: {track.videoFileName}
                       </p>
                     )}
@@ -1213,8 +1196,8 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     </div>
                   ) : (
                     <>
-                      <div className="flex justify-between items-start group/title">
-                        <div className="text-xl sm:text-lg leading-relaxed flex-1">
+                      <div className="flex justify-between items-start group/title pb-1 transition-all duration-300">
+                        <div className="text-[1.3rem] sm:text-xl leading-relaxed flex-1">
                           {renderSegmentText(segment.text, isSegmentActive(segment), sIdx)}
                         </div>
                         {isEditModeGlobal && (
@@ -1230,15 +1213,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
                       <div className="flex flex-col space-y-2">
                         <div className="flex items-center justify-between">
-                          <button
-                            onClick={(e) => toggleTranslation(sIdx, e)}
-                            className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
-                            title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
-                          >
-                            {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                          </button>
-
-
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={(e) => toggleTranslation(sIdx, e)}
+                              className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
+                              title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
+                            >
+                              {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
 
                         <AnimatePresence>
@@ -1304,10 +1287,21 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={onPrev}
-                  className="text-gray-500 hover:text-gray-200 hover:bg-white/5 w-12 h-12 sm:w-10 sm:h-10"
+                  onPointerDown={handleVideoTouchStart}
+                  onPointerUp={handleVideoTouchEnd}
+                  onPointerLeave={() => {
+                    if (longPressTimerRef.current) {
+                      clearTimeout(longPressTimerRef.current);
+                      longPressTimerRef.current = null;
+                    }
+                  }}
+                  className={cn(
+                    "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
+                    hasVideo && showVideo ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                  )}
+                  title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
                 >
-                  <SkipBack className="w-7 h-7 sm:w-5 sm:h-5" />
+                  <Youtube className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
                 </Button>
                 <Button
                   onClick={togglePlay}
@@ -1323,10 +1317,14 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={onNext}
-                  className="text-gray-500 hover:text-gray-200 hover:bg-white/5 w-12 h-12 sm:w-10 sm:h-10"
+                  onClick={() => setIsEditModeGlobal(!isEditModeGlobal)}
+                  className={cn(
+                    "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
+                    isEditModeGlobal ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                  )}
+                  title={isEditModeGlobal ? "Sair da Edição" : "Modo Edição"}
                 >
-                  <SkipForward className="w-7 h-7 sm:w-5 sm:h-5" />
+                  <Edit2 className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
                 </Button>
               </div>
 
