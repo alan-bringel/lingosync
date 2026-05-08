@@ -244,7 +244,7 @@ class GoogleDriveService {
     });
   }
 
-  async downloadFile(fileId: string): Promise<Blob> {
+  async downloadFile(fileId: string, onProgress?: (progress: number) => void): Promise<Blob> {
     const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
@@ -252,7 +252,31 @@ class GoogleDriveService {
     });
 
     if (!response.ok) throw new Error("Download failed");
-    return response.blob();
+
+    if (!onProgress || !response.body) {
+      return response.blob();
+    }
+
+    const contentLength = response.headers.get("Content-Length");
+    const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+    if (!total) {
+      return response.blob();
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      onProgress(Math.round((received / total) * 100));
+    }
+
+    return new Blob(chunks as BlobPart[]);
   }
 
   async listFiles(): Promise<GoogleDriveFile[]> {

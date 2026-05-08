@@ -285,6 +285,7 @@ export default function App() {
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [showUserMenu, setShowUserMenu] = useState(false);
   const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -352,18 +353,23 @@ export default function App() {
   const downloadTrackFromDrive = async (track: AudioTrack) => {
     if (!isGoogleLoggedIn || !track.driveFileId || !track.driveAudioFileId) return;
     setIsSyncing(track.id);
+    setDownloadProgress(prev => ({ ...prev, [track.id]: 0 }));
     try {
       // 1. Download JSON
-      const jsonBlob = await googleDriveService.downloadFile(track.driveFileId);
+      const jsonBlob = await googleDriveService.downloadFile(track.driveFileId, (pct) => {
+        setDownloadProgress(prev => ({ ...prev, [track.id]: pct }));
+      });
       const jsonData = JSON.parse(await jsonBlob.text());
       
       // 2. Download Audio
-      const audioBlob = await googleDriveService.downloadFile(track.driveAudioFileId);
+      const audioBlob = await googleDriveService.downloadFile(track.driveAudioFileId, (pct) => {
+        setDownloadProgress(prev => ({ ...prev, [track.id]: 50 + Math.round(pct / 2) }));
+      });
       
       // 3. Save locally
       const newTrack: AudioTrack = {
         ...jsonData,
-        id: track.id, // Keep same ID
+        id: track.id,
         url: URL.createObjectURL(audioBlob),
         syncStatus: 'synced'
       };
@@ -375,6 +381,11 @@ export default function App() {
       console.error("Failed to download from Drive:", error);
     } finally {
       setIsSyncing(null);
+      setDownloadProgress(prev => {
+        const next = { ...prev };
+        delete next[track.id];
+        return next;
+      });
     }
   };
 
@@ -1529,7 +1540,7 @@ export default function App() {
         transition={{ delay: index * 0.05, duration: 0.3 }}
       >
         {/* Action Buttons Background - Positioned behind the sliding content */}
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-3 w-[180px] justify-end">
+        <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-3 w-[130px] justify-end">
           {/* Cloud Sync Button */}
           {isGoogleLoggedIn && (
             <Button
@@ -1554,7 +1565,13 @@ export default function App() {
               )}
             >
               {isSyncing === track.id ? (
-                <RefreshCw className="w-5 h-5 animate-spin" />
+                <div className="relative w-5 h-5">
+                  <svg className="w-5 h-5 -rotate-90" viewBox="0 0 20 20">
+                    <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.2" />
+                    <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray={`${2 * Math.PI * 8}`} strokeDashoffset={`${2 * Math.PI * 8 * (1 - (downloadProgress[track.id] || 0) / 100)}`} strokeLinecap="round" />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold">{downloadProgress[track.id] || 0}</span>
+                </div>
               ) : track.syncStatus === 'synced' ? (
                 <CheckCircle2 className="w-5 h-5" />
               ) : track.syncStatus === 'missing_local' ? (
@@ -1569,46 +1586,26 @@ export default function App() {
             </Button>
           )}
 
-          {/* Delete Local Button */}
+          {/* Delete Button - removes from app + cloud */}
           <Button
             variant="ghost"
             size="icon"
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
-              handleDeleteTrack(track.id, e, false);
+              handleDeleteTrack(track.id, e, true);
               setIsMenuOpen(false);
             }}
-            title="Excluir do navegador"
+            title="Excluir lição"
             className="text-red-400/60 hover:text-red-400 hover:bg-red-500/10 h-12 w-12 rounded-full transition-all flex items-center justify-center"
           >
             <Trash2 className="w-5 h-5" />
           </Button>
-
-          {/* Delete Everywhere Button (only if synced) */}
-          {track.driveFileId && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                handleDeleteTrack(track.id, e, true);
-                setIsMenuOpen(false);
-              }}
-              title="Excluir de tudo (Navegador + Nuvem)"
-              className="text-red-500 hover:text-red-400 hover:bg-red-500/20 h-12 w-12 rounded-full transition-all flex items-center justify-center"
-            >
-              <span className="relative flex items-center justify-center w-5 h-5">
-                <Trash2 className="w-5 h-5" />
-                <Cloud className="w-3 h-3 absolute -bottom-1.5 -right-2.5" />
-              </span>
-            </Button>
-          )}
         </div>
 
         {/* Sliding Foreground Content */}
         <motion.div
           initial={false}
-          animate={{ x: isMenuOpen ? (track.driveFileId ? -180 : -120) : 0 }}
+          animate={{ x: isMenuOpen ? -110 : 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 40 }}
           className={cn(
             "relative z-10 w-full flex items-center p-4 rounded-xl transition-colors duration-300 text-left border-[1.5px] cursor-pointer",
@@ -1633,6 +1630,11 @@ export default function App() {
             <p className={cn("text-xl font-semibold truncate transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
               {track.title}
             </p>
+            {isSyncing === track.id && (
+              <div className="mt-2 w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-green-500 h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
+              </div>
+            )}
           </div>
 
           {/* Drag/Menu Icon - Two Lines */}
