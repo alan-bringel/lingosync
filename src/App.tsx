@@ -850,7 +850,7 @@ export default function App() {
       if (missingFiles.length > 0) {
         const confirmRestore = await showConfirm(
           "Lições encontradas na nuvem",
-          `Encontramos ${missingFiles.length} lição(ões) sua(s) no Google Drive que não estão no seu navegador. Deseja restaurá-las?`
+          `Encontramos ${missingFiles.length} lição(ões) sua(s) no Google Drive que não estão salvas neste app. Deseja restaurá-las?`
         );
         if (confirmRestore) {
           for (const file of missingFiles) {
@@ -1346,8 +1346,8 @@ export default function App() {
     const confirmed = await showConfirm(
       deleteFromDrive ? "Excluir lição" : "Excluir lição",
       deleteFromDrive 
-        ? "Tem certeza que deseja excluir esta lição do navegador E do Google Drive? Esta ação não pode ser desfeita."
-        : "Tem certeza que deseja excluir esta lição do navegador? Se ela estiver sincronizada, você poderá baixá-la novamente depois."
+        ? "Tem certeza que deseja excluir esta lição deste app E do Google Drive? Esta ação não pode ser desfeita."
+        : "Tem certeza que deseja excluir esta lição deste app? Se ela estiver sincronizada, você poderá baixá-la novamente depois."
     );
     if (!confirmed) return;
 
