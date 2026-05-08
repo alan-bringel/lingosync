@@ -24,6 +24,10 @@ class GoogleDriveService {
     return this._userInfo;
   }
 
+  private getRequiredScopesHash(): string {
+    return SCOPES.split(" ").sort().join(" ");
+  }
+
   constructor() {
     this.accessToken = localStorage.getItem("google_drive_access_token");
     this.tokenExpiresAt = localStorage.getItem("google_drive_token_expires_at")
@@ -66,6 +70,7 @@ class GoogleDriveService {
     this.tokenExpiresAt = Date.now() + (response.expires_in || 3600) * 1000;
     localStorage.setItem("google_drive_access_token", response.access_token);
     localStorage.setItem("google_drive_token_expires_at", String(this.tokenExpiresAt));
+    localStorage.setItem("google_drive_scopes", this.getRequiredScopesHash());
   }
 
   async getUserInfo() {
@@ -112,6 +117,11 @@ class GoogleDriveService {
 
   async trySilentLogin() {
     if (!this.accessToken) return false;
+    const storedScopes = localStorage.getItem("google_drive_scopes");
+    if (storedScopes !== this.getRequiredScopesHash()) {
+      this.logout();
+      return false;
+    }
     return new Promise<boolean>((resolve) => {
       if (!this.tokenClient) {
         resolve(false);
@@ -147,10 +157,16 @@ class GoogleDriveService {
     this._userInfo = null;
     localStorage.removeItem("google_drive_access_token");
     localStorage.removeItem("google_drive_token_expires_at");
+    localStorage.removeItem("google_drive_scopes");
   }
 
   isLoggedIn() {
     if (!this.accessToken) return false;
+    const storedScopes = localStorage.getItem("google_drive_scopes");
+    if (storedScopes !== this.getRequiredScopesHash()) {
+      this.logout();
+      return false;
+    }
     if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
       this.logout();
       return false;
@@ -177,7 +193,7 @@ class GoogleDriveService {
       },
     });
 
-    if (response.status === 401) {
+    if (response.status === 401 || response.status === 403) {
       this.logout();
       throw new Error("Unauthorized - Please login again");
     }
