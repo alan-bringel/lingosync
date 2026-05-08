@@ -153,9 +153,8 @@ class GoogleDriveService {
         resolve(true);
       };
       try {
-        this.tokenClient.requestAccessToken();
+        this.tokenClient.requestAccessToken({ prompt: "" });
       } catch {
-        this.logout();
         resolve(false);
       }
     });
@@ -269,7 +268,7 @@ class GoogleDriveService {
 
   async listFiles(): Promise<GoogleDriveFile[]> {
     const query = `'appDataFolder' in parents and trashed = false`;
-    const data = await this.fetchDrive(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name, mimeType)`);
+    const data = await this.fetchDrive(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${encodeURIComponent(query)}&fields=files(id, name, mimeType)`);
     return data.files || [];
   }
 }
