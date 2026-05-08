@@ -42,7 +42,71 @@ const MAX_WORDS_PER_SEGMENT = 15;
 
 const LingoSyncLogo = ({ className = "w-10 h-10" }: { className?: string }) => (
   <div className={cn("relative flex items-center justify-center", className)}>
-    <img src="/icon-v2.svg" alt="LingoSync Logo" className="w-full h-full" />
+    <svg 
+      viewBox="0 0 512 512" 
+      className="w-full h-full" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+      shapeRendering="geometricPrecision"
+      textRendering="geometricPrecision"
+    >
+      {/* Simple L at the left */}
+      <text 
+        x="40" 
+        y="360" 
+        fill="#827367" 
+        fontSize="240" 
+        fontWeight="900" 
+        style={{ fontFamily: 'system-ui, sans-serif' }}
+      >
+        L
+      </text>
+
+      {/* Real Compass Icon - Centered composition */}
+      <g transform="translate(40, 20)">
+        <g stroke="#827367" strokeWidth="25" strokeLinecap="round" strokeLinejoin="round">
+          {/* Left leg with needle point */}
+          <path d="M170 100L85 340" />
+          <path d="M85 340L75 380" strokeWidth="15" />
+          
+          {/* Right leg with pencil/pen holder */}
+          <path d="M170 100L255 340" />
+          <path d="M255 340L265 380" strokeWidth="50" />
+          
+          {/* Hinge and handle */}
+          <circle cx="170" cy="100" r="22" fill="#827367" stroke="none" />
+          <path d="M170 100V60" strokeWidth="40" />
+          
+          {/* Adjustment screw/arc */}
+          <path d="M115 230C135 220 205 220 225 230" strokeWidth="12" opacity="0.6" />
+          <circle cx="170" cy="225" r="12" fill="#827367" stroke="none" />
+        </g>
+      </g>
+      
+      {/* Small s above 文 character */}
+      <text 
+        x="330" 
+        y="190" 
+        fill="#827367" 
+        fontSize="160" 
+        fontWeight="900" 
+        style={{ fontFamily: 'system-ui, sans-serif' }}
+      >
+        s
+      </text>
+
+      {/* 文 character */}
+      <text 
+        x="320" 
+        y="360" 
+        fill="#827367" 
+        fontSize="170" 
+        fontWeight="900" 
+        style={{ fontFamily: 'system-ui, sans-serif' }}
+      >
+        文
+      </text>
+    </svg>
   </div>
 );
 
@@ -1041,11 +1105,11 @@ export default function App() {
     };
 
     return (
-      <div className="space-y-3 p-4 rounded-xl border-[1.5px] border-white/10 bg-white/[0.01] relative">
+      <div className="space-y-3 p-4 rounded-xl border-[1.5px] border-white/10 bg-[#0d0d0d] relative">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             {/* Logo is now always present in SidebarHeader */}
-            <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center shrink-0 aspect-square">
+            <div className="w-10 h-10 bg-[#827367]/20 rounded-full flex items-center justify-center shrink-0 aspect-square">
               <LingoSyncLogo className="w-8 h-8 text-[#827367]" />
             </div>
 
@@ -1138,14 +1202,14 @@ export default function App() {
 
     return (
       <motion.div
-        className="relative mb-2 rounded-xl group overflow-hidden"
+        className="relative mb-2 rounded-xl group overflow-hidden bg-[#0d0d0d]"
         ref={containerRef}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.05, duration: 0.3 }}
       >
-        {/* Action Buttons Background */}
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-3 w-[140px] justify-end bg-transparent">
+        {/* Action Buttons Background - Positioned behind the sliding content */}
+        <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-3 w-[140px] justify-end">
           <Button
             variant="ghost"
             size="icon"
@@ -1178,7 +1242,8 @@ export default function App() {
           animate={{ x: isMenuOpen ? -140 : 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 40 }}
           className={cn(
-            "relative z-10 w-full flex items-center p-4 rounded-xl transition-colors duration-300 text-left border-[1.5px] cursor-pointer bg-[#0d0d0d]",
+            "relative z-10 w-full flex items-center p-4 rounded-xl transition-colors duration-300 text-left border-[1.5px] cursor-pointer",
+            "bg-[#111111]", // Cor sólida mais escura, similar ao container de língua nativa
             currentTrackIndex === index && currentView === 'lesson'
               ? "border-white/20"
               : "border-white/10 hover:border-white/20"
@@ -1275,7 +1340,7 @@ export default function App() {
           >
             <div className="absolute inset-0 bg-radial-gradient from-[#443a32]/10 to-transparent opacity-50" />
             <div className="relative z-10 flex flex-col items-center space-y-6">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/[0.02] flex items-center justify-center border-[1.5px] border-white/10 shadow-inner">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-[#827367]/20 flex items-center justify-center border-[1.5px] border-white/10 shadow-inner">
                 <LingoSyncLogo className="w-14 h-14 sm:w-16 sm:h-16" />
               </div>
               <motion.h1
@@ -1357,7 +1422,7 @@ export default function App() {
                           <div className="absolute inset-0 bg-radial-gradient from-[#443a32]/10 to-transparent opacity-50" />
                           
                           <div className="relative z-10 space-y-8 flex flex-col items-center">
-                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/[0.02] flex items-center justify-center border-[1.5px] border-white/10 shadow-inner">
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-[#827367]/20 flex items-center justify-center border-[1.5px] border-white/10 shadow-inner">
                               <LingoSyncLogo className="w-14 h-14 sm:w-16 sm:h-16" />
                             </div>
                             <div className="space-y-4">
@@ -1420,12 +1485,6 @@ export default function App() {
                         <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
                         <span>Biblioteca</span>
                       </Button>
-
-                      {/* Logo in the center of the lesson header */}
-                      <div className="hidden sm:flex items-center space-x-3 absolute left-1/2 -translate-x-1/2">
-                        <LingoSyncLogo className="w-6 h-6 text-[#827367]" />
-                        <span className="text-sm font-bold tracking-widest text-gray-500 uppercase">LingoSync</span>
-                      </div>
 
                       <Button
                         variant="ghost"

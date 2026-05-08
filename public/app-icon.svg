@@ -1,4 +1,7 @@
 <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
+  {/* Background matched to vocabulary element fill color (#827367 at 20% over site black) */}
+  <rect width="512" height="512" fill="#24211f"/>
+  
   <text x="40" y="360" fill="#827367" font-size="240" font-weight="900" font-family="sans-serif">L</text>
   <g transform="translate(40, 20)">
     <g stroke="#827367" stroke-width="25" stroke-linecap="round" stroke-linejoin="round">
