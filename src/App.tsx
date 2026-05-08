@@ -7,7 +7,7 @@ const ScrollArea = ({ children, className }: any) => <div className={className} 
 // import { Badge } from "@/components/ui/badge";
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
-import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle } from "lucide-react";
+import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle, LogOut } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
 import { motion, AnimatePresence, useMotionValue } from "motion/react";
@@ -285,6 +285,7 @@ export default function App() {
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedAutoSync = (trackId: string) => {
@@ -1414,20 +1415,40 @@ export default function App() {
 
                   {/* Google User Avatar */}
                   {isGoogleLoggedIn && googleDriveService.userInfo ? (
-                    <div 
-                      className="relative group cursor-pointer"
-                      onClick={handleGoogleLogout}
-                      title="Desconectar do Google Drive"
-                    >
-                      <img 
-                        src={googleDriveService.userInfo.picture} 
-                        alt={googleDriveService.userInfo.name}
-                        className="w-10 h-10 rounded-full border-2 border-green-400/50 hover:border-green-400 transition-all shrink-0"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 rounded-full bg-black/0 hover:bg-black/30 transition-all flex items-center justify-center opacity-0 hover:opacity-100">
-                        <span className="text-[9px] font-bold text-white text-center leading-tight">Sair</span>
-                      </div>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowUserMenu(prev => !prev)}
+                        className="w-10 h-10 rounded-full border-2 border-green-400/50 hover:border-green-400 transition-all shrink-0 overflow-hidden cursor-pointer"
+                        title={googleDriveService.userInfo.name}
+                      >
+                        <img 
+                          src={googleDriveService.userInfo.picture} 
+                          alt={googleDriveService.userInfo.name}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </button>
+                      {showUserMenu && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                          <div className="absolute right-0 top-full mt-2 z-50 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+                            <div className="px-4 py-3 border-b border-white/5">
+                              <p className="text-sm font-medium text-white truncate">{googleDriveService.userInfo.name}</p>
+                              <p className="text-xs text-gray-400 truncate">{googleDriveService.userInfo.email}</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                handleGoogleLogout();
+                                setShowUserMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/5 transition-colors"
+                            >
+                              <LogOut className="w-4 h-4" />
+                              Sair
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
                     <Button
