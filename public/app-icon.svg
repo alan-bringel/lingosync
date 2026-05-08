@@ -1,20 +1,64 @@
 <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
-  {/* Background matched to vocabulary element fill color (#827367 at 20% over site black) */}
+  {/* Background matched to welcome container fill (#827367 at 20%) */}
   <rect width="512" height="512" fill="#24211f"/>
   
-  <text x="40" y="360" fill="#827367" font-size="240" font-weight="900" font-family="sans-serif">L</text>
-  <g transform="translate(40, 20)">
-    <g stroke="#827367" stroke-width="25" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M170 100L85 340" />
-      <path d="M85 340L75 380" stroke-width="15" />
-      <path d="M170 100L255 340" />
-      <path d="M255 340L265 380" stroke-width="50" />
-      <circle cx="170" cy="100" r="22" fill="#827367" stroke="none" />
-      <path d="M170 100V60" stroke-width="40" />
-      <path d="M115 230C135 220 205 220 225 230" stroke-width="12" opacity="0.6" />
-      <circle cx="170" cy="225" r="12" fill="#827367" stroke="none" />
+  {/* Grouping elements to scale them into the 80% safe zone for app icons */}
+  <g transform="translate(51, 51) scale(0.8)">
+    {/* Simple L at the left */}
+    <text 
+      x="40" 
+      y="360" 
+      fill="#827367" 
+      font-size="240" 
+      font-weight="900" 
+      font-family="sans-serif"
+    >
+      L
+    </text>
+
+    {/* Real Compass Icon - Centered composition */}
+    <g transform="translate(40, 20)">
+      <g stroke="#827367" stroke-width="25" stroke-linecap="round" stroke-linejoin="round">
+        {/* Left leg with needle point */}
+        <path d="M170 100L85 340" />
+        <path d="M85 340L75 380" stroke-width="15" />
+        
+        {/* Right leg with pencil/pen holder */}
+        <path d="M170 100L255 340" />
+        <path d="M255 340L265 380" stroke-width="50" />
+        
+        {/* Hinge and handle */}
+        <circle cx="170" cy="100" r="22" fill="#827367" stroke="none" />
+        <path d="M170 100V60" stroke-width="40" />
+        
+        {/* Adjustment screw/arc */}
+        <path d="M115 230C135 220 205 220 225 230" stroke-width="12" opacity="0.6" />
+        <circle cx="170" cy="225" r="12" fill="#827367" stroke="none" />
+      </g>
     </g>
+    
+    {/* Small s above 文 character */}
+    <text 
+      x="330" 
+      y="190" 
+      fill="#827367" 
+      font-size="160" 
+      font-weight="900" 
+      font-family="sans-serif"
+    >
+      s
+    </text>
+
+    {/* 文 character */}
+    <text 
+      x="320" 
+      y="360" 
+      fill="#827367" 
+      font-size="170" 
+      font-weight="900" 
+      font-family="sans-serif"
+    >
+      文
+    </text>
   </g>
-  <text x="330" y="190" fill="#827367" font-size="160" font-weight="900" font-family="sans-serif">s</text>
-  <text x="320" y="360" fill="#827367" font-size="170" font-weight="900" font-family="sans-serif">文</text>
 </svg>
