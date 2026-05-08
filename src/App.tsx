@@ -1100,7 +1100,12 @@ export default function App() {
     return (
       <div className="space-y-3 p-4 rounded-xl border-[1.5px] border-white/10 bg-white/[0.01] relative">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
+            {/* Logo is now always present in SidebarHeader */}
+            <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center shrink-0 aspect-square">
+              <LingoSyncLogo className="w-8 h-8 text-[#827367]" />
+            </div>
+
             {currentView === 'library' ? (
               <Badge variant="ghost" className="bg-transparent border-none p-0 h-10 flex items-center justify-center shrink-0 gap-4 w-fit">
                 <span className="text-2xl font-bold tracking-tight text-gray-500">Língua nativa</span>
@@ -1108,23 +1113,18 @@ export default function App() {
                 <LanguageSelector currentLanguage={nativeLanguage} onLanguageChange={setNativeLanguage} exclude={currentLanguage} className="text-sm font-bold text-gray-500" />
               </Badge>
             ) : (
-              <>
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center shrink-0 aspect-square">
-                    <LingoSyncLogo className="w-8 h-8 text-[#827367]" />
-                  </div>
-                  <h1 className="text-2xl font-bold tracking-tight text-gray-300">LingoSync</h1>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowHelp(true)}
-                    className="text-gray-600 hover:text-gray-300 h-8 w-8"
-                    title="Guia LingoSync"
-                  >
-                    <Info className="w-4 h-4" />
-                  </Button>
-                </div>
-              </>
+              <div className="flex items-center space-x-3">
+                <h1 className="text-2xl font-bold tracking-tight text-gray-300">LingoSync</h1>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowHelp(true)}
+                  className="text-gray-600 hover:text-gray-300 h-8 w-8"
+                  title="Guia LingoSync"
+                >
+                  <Info className="w-4 h-4" />
+                </Button>
+              </div>
             )}
           </div>
             <div className="flex items-center space-x-3">
@@ -1477,6 +1477,12 @@ export default function App() {
                         <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
                         <span>Biblioteca</span>
                       </Button>
+
+                      {/* Logo in the center of the lesson header */}
+                      <div className="hidden sm:flex items-center space-x-3 absolute left-1/2 -translate-x-1/2">
+                        <LingoSyncLogo className="w-6 h-6 text-[#827367]" />
+                        <span className="text-sm font-bold tracking-widest text-gray-500 uppercase">LingoSync</span>
+                      </div>
 
                       <Button
                         variant="ghost"
