@@ -42,64 +42,7 @@ const MAX_WORDS_PER_SEGMENT = 15;
 
 const LingoSyncLogo = ({ className = "w-10 h-10" }: { className?: string }) => (
   <div className={cn("relative flex items-center justify-center", className)}>
-    <svg viewBox="0 0 24 24" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Simple L at the left */}
-      <text 
-        x="2" 
-        y="17" 
-        fill="#827367" 
-        fontSize="11" 
-        fontWeight="900" 
-        style={{ fontFamily: 'sans-serif' }}
-      >
-        L
-      </text>
-
-      {/* Real Compass Icon - Shifted to center-right */}
-      <g transform="translate(2, 1)">
-        <g stroke="#827367" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-          {/* Left leg with needle point */}
-          <path d="M8 5L4 16" />
-          <path d="M4 16L3.5 18" strokeWidth="0.8" />
-          
-          {/* Right leg with pencil/pen holder */}
-          <path d="M8 5L12 16" />
-          <path d="M12 16L12.5 18" strokeWidth="2.5" />
-          
-          {/* Hinge and handle */}
-          <circle cx="8" cy="5" r="1" fill="#827367" stroke="none" />
-          <path d="M8 5V3" strokeWidth="1.8" />
-          
-          {/* Adjustment screw/arc */}
-          <path d="M5.5 11C6.5 10.5 9.5 10.5 10.5 11" strokeWidth="0.6" opacity="0.6" />
-          <circle cx="8" cy="10.8" r="0.6" fill="#827367" stroke="none" />
-        </g>
-      </g>
-      
-      {/* Small s above 文 character - Moved higher to avoid touching - Slightly larger */}
-      <text 
-        x="15.5" 
-        y="9" 
-        fill="#827367" 
-        fontSize="7.5" 
-        fontWeight="900" 
-        style={{ fontFamily: 'sans-serif' }}
-      >
-        s
-      </text>
-
-      {/* 文 character - Sharing the right space - Slightly smaller */}
-      <text 
-        x="15" 
-        y="17" 
-        fill="#827367" 
-        fontSize="8" 
-        fontWeight="900" 
-        style={{ fontFamily: 'sans-serif' }}
-      >
-        文
-      </text>
-    </svg>
+    <img src="/icon-v2.svg" alt="LingoSync Logo" className="w-full h-full" />
   </div>
 );
 
