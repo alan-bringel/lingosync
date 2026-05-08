@@ -1418,7 +1418,7 @@ export default function App() {
                     <div className="relative">
                       <button
                         onClick={() => setShowUserMenu(prev => !prev)}
-                        className="w-10 h-10 rounded-full border-2 border-green-400/50 hover:border-green-400 transition-all shrink-0 overflow-hidden cursor-pointer"
+                        className="w-10 h-10 rounded-full shrink-0 overflow-hidden cursor-pointer"
                         title={googleDriveService.userInfo.name}
                       >
                         <img 
