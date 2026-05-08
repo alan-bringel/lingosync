@@ -398,6 +398,9 @@ export default function App() {
       setTimeout(() => evictCacheIfNeeded(), 0);
     } catch (error) {
       console.error("Failed to download from Drive:", error);
+      setPlaylist(prev => prev.map(t =>
+        t.id === track.id ? { ...t, syncStatus: 'error' as const } : t
+      ));
     } finally {
       setIsSyncing(null);
       setDownloadProgress(prev => {
@@ -1540,6 +1543,7 @@ export default function App() {
       if (track.syncStatus === 'missing_local' || track.syncStatus === 'cloud_only') {
         if (isGoogleLoggedIn && track.driveFileId && track.driveAudioFileId) {
           setIsMenuOpen(true);
+          downloadTrackFromDrive(track);
         }
         return;
       }
@@ -1622,7 +1626,7 @@ export default function App() {
         {/* Sliding Foreground Content */}
         <motion.div
           initial={false}
-          animate={{ x: isMenuOpen ? -110 : 0 }}
+          animate={{ x: isMenuOpen ? -135 : 0 }}
           transition={{ type: "spring", stiffness: 400, damping: 40 }}
           className={cn(
             "relative z-10 w-full flex items-center p-4 rounded-xl transition-colors duration-300 text-left border-[1.5px] cursor-pointer",
@@ -1648,9 +1652,21 @@ export default function App() {
               {track.title}
             </p>
             {isSyncing === track.id && (
-              <div className="mt-2 w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                <div className="bg-green-500 h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+                  <span className="text-xs text-blue-400 font-medium">Baixando da nuvem... {downloadProgress[track.id] || 0}%</span>
+                </div>
+                <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-blue-500 h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
+                </div>
               </div>
+            )}
+            {track.syncStatus === 'missing_local' && isSyncing !== track.id && (
+              <p className="text-xs text-blue-400/60 mt-1">Disponível na nuvem — clique para baixar</p>
+            )}
+            {track.syncStatus === 'error' && isSyncing !== track.id && (
+              <p className="text-xs text-red-400/60 mt-1">Erro ao sincronizar — clique na nuvem para tentar novamente</p>
             )}
           </div>
 
