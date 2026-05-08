@@ -203,11 +203,15 @@ class GoogleDriveService {
   }
 
   async uploadFile(name: string, content: Blob | string, mimeType: string, existingFileId?: string): Promise<string> {
+    const isUpdate = !!existingFileId;
     const metadata: any = {
       name,
       mimeType,
-      parents: ["appDataFolder"],
     };
+
+    if (!isUpdate) {
+      metadata.parents = ["appDataFolder"];
+    }
 
     const form = new FormData();
     form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
