@@ -103,6 +103,16 @@ class GoogleDriveService {
           reject(new Error(response.error));
           return;
         }
+        const grantedScopes = (response.scope || "").split(" ");
+        if (!grantedScopes.includes("https://www.googleapis.com/auth/drive.appdata")) {
+          reject(new Error(
+            "Escopo drive.appdata não foi autorizado. Verifique se adicionou " +
+            "'https://www.googleapis.com/auth/drive.appdata' na tela de consentimento " +
+            "OAuth do Google Cloud Console (APIs & Services > OAuth consent screen > Scopes) " +
+            "e que o app está publicado."
+          ));
+          return;
+        }
         this.setTokens(response);
         const userInfo = await this.getUserInfo();
         if (!userInfo) {
@@ -194,8 +204,9 @@ class GoogleDriveService {
     });
 
     if (response.status === 401 || response.status === 403) {
+      const errorBody = await response.json().catch(() => ({}));
       this.logout();
-      throw new Error("Unauthorized - Please login again");
+      throw new Error(errorBody.error?.message || `Unauthorized (${response.status}) - Please login again`);
     }
 
     if (!response.ok) {
