@@ -287,6 +287,25 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void } | null>(null);
+
+  const showConfirm = (title: string, message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setConfirmDialog({
+        isOpen: true,
+        title,
+        message,
+        onConfirm: () => {
+          setConfirmDialog(null);
+          resolve(true);
+        },
+        onCancel: () => {
+          setConfirmDialog(null);
+          resolve(false);
+        },
+      });
+    });
+  };
   const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedAutoSync = (trackId: string) => {
@@ -829,8 +848,9 @@ export default function App() {
       const missingFiles = lsyncFiles.filter(f => !localDriveIds.includes(f.id));
       
       if (missingFiles.length > 0) {
-        const confirmRestore = window.confirm(
-          `Encontramos ${missingFiles.length} lição(ões) sua(s) no Google Drive que não estão no seu navegador.\n\nDeseja restaurá-las?`
+        const confirmRestore = await showConfirm(
+          "Lições encontradas na nuvem",
+          `Encontramos ${missingFiles.length} lição(ões) sua(s) no Google Drive que não estão no seu navegador. Deseja restaurá-las?`
         );
         if (confirmRestore) {
           for (const file of missingFiles) {
@@ -1323,13 +1343,13 @@ export default function App() {
     const track = playlist.find(t => t.id === id);
     if (!track) return;
 
-    const message = deleteFromDrive 
-      ? "Tem certeza que deseja excluir esta lição do navegador E do Google Drive? Esta ação não pode ser desfeita."
-      : "Tem certeza que deseja excluir esta lição do navegador? Se ela estiver sincronizada, você poderá baixá-la novamente depois.";
-
-    if (!window.confirm(message)) {
-      return;
-    }
+    const confirmed = await showConfirm(
+      deleteFromDrive ? "Excluir lição" : "Excluir lição",
+      deleteFromDrive 
+        ? "Tem certeza que deseja excluir esta lição do navegador E do Google Drive? Esta ação não pode ser desfeita."
+        : "Tem certeza que deseja excluir esta lição do navegador? Se ela estiver sincronizada, você poderá baixá-la novamente depois."
+    );
+    if (!confirmed) return;
 
     // 1. Delete from Drive if requested
     if (deleteFromDrive && track.driveFileId) {
@@ -1519,10 +1539,7 @@ export default function App() {
       }
       if (track.syncStatus === 'missing_local' || track.syncStatus === 'cloud_only') {
         if (isGoogleLoggedIn && track.driveFileId && track.driveAudioFileId) {
-          await downloadTrackFromDrive(track);
-          setCurrentTrackIndex(index);
-          setCurrentView('lesson');
-          updateLastAccessed(track.id);
+          setIsMenuOpen(true);
         }
         return;
       }
@@ -2497,6 +2514,37 @@ export default function App() {
           model={rateLimitModel}
           isDailyLimit={isRateLimitDaily}
         />
+
+        {/* Custom Confirm Dialog */}
+        {confirmDialog?.isOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="w-full max-w-sm bg-[#161616] border border-[#827367]/30 rounded-3xl overflow-hidden shadow-2xl relative"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#827367]/50 to-transparent" />
+              <div className="p-8 text-center space-y-6">
+                <h3 className="text-xl font-bold text-gray-200">{confirmDialog.title}</h3>
+                <p className="text-base text-gray-400 leading-relaxed">{confirmDialog.message}</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={confirmDialog.onCancel}
+                    className="flex-1 py-3 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors font-bold uppercase tracking-widest"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={confirmDialog.onConfirm}
+                    className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors font-bold uppercase tracking-widest"
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     </>
   );
