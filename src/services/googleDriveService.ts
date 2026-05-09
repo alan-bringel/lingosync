@@ -176,124 +176,179 @@ class GoogleDriveService {
     return this.accessToken;
   }
 
-  private async fetchDrive(url: string, options: RequestInit = {}) {
-    if (!this.accessToken) throw new Error("Not logged in to Google Drive");
-
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        Authorization: `Bearer ${this.accessToken}`,
-      },
+  async refreshTokenSilently(): Promise<boolean> {
+    if (!this.tokenClient) return false;
+    return new Promise((resolve) => {
+      const originalCallback = this.tokenClient.callback;
+      this.tokenClient.callback = (response: any) => {
+        if (response.error) {
+          this.logout();
+          resolve(false);
+          return;
+        }
+        this.setTokens(response);
+        resolve(true);
+      };
+      try {
+        this.tokenClient.requestAccessToken({ prompt: '' });
+      } catch {
+        this.tokenClient.callback = originalCallback;
+        resolve(false);
+      }
     });
+  }
 
-    if (response.status === 401 || response.status === 403) {
-      const errorBody = await response.json().catch(() => ({}));
-      const msg = errorBody.error?.message || `HTTP ${response.status}`;
-      console.error("Google Drive API error:", msg, "| URL:", url.split("?")[0]);
-      throw new Error(msg);
+  private async executeWithRefresh<T>(fn: () => Promise<T>, hasRetried = false): Promise<T> {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      const isAuthError = msg.includes("401") || msg.includes("403") ||
+        msg.includes("invalid authentication credentials") ||
+        msg.includes("Invalid Credentials") ||
+        msg.includes("Request had invalid authentication");
+      if (isAuthError && !hasRetried) {
+        const refreshed = await this.refreshTokenSilently();
+        if (refreshed && this.accessToken) {
+          return await fn();
+        }
+        this.logout();
+        throw new Error("Sessão do Google expirada. Faça login novamente.");
+      }
+      throw error;
     }
+  }
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || "Google Drive API Error");
-    }
+  private async fetchDrive(url: string, options: RequestInit = {}) {
+    return this.executeWithRefresh(async () => {
+      if (!this.accessToken) throw new Error("Not logged in to Google Drive");
 
-    return response.json();
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        const errorBody = await response.json().catch(() => ({}));
+        const msg = errorBody.error?.message || `HTTP ${response.status}`;
+        console.error("Google Drive API error:", msg, "| URL:", url.split("?")[0]);
+        throw new Error(msg);
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Google Drive API Error");
+      }
+
+      return response.json();
+    });
   }
 
   async uploadFile(name: string, content: Blob | string, mimeType: string, existingFileId?: string): Promise<string> {
-    const isUpdate = !!existingFileId;
-    const metadata: any = {
-      name,
-      mimeType,
-    };
+    return this.executeWithRefresh(async () => {
+      if (!this.accessToken) throw new Error("Not logged in to Google Drive");
 
-    if (!isUpdate) {
-      metadata.parents = ["appDataFolder"];
-    }
+      const isUpdate = !!existingFileId;
+      const metadata: any = {
+        name,
+        mimeType,
+      };
 
-    const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-    form.append("file", typeof content === "string" ? new Blob([content], { type: mimeType }) : content);
+      if (!isUpdate) {
+        metadata.parents = ["appDataFolder"];
+      }
 
-    const url = existingFileId
-      ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
-      : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+      const form = new FormData();
+      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      form.append("file", typeof content === "string" ? new Blob([content], { type: mimeType }) : content);
 
-    const response = await fetch(url, {
-      method: existingFileId ? "PATCH" : "POST",
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-      },
-      body: form,
+      const url = existingFileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
+        : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+
+      const response = await fetch(url, {
+        method: existingFileId ? "PATCH" : "POST",
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+        body: form,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Upload failed");
+      }
+
+      const data = await response.json();
+      return data.id;
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || "Upload failed");
-    }
-
-    const data = await response.json();
-    return data.id;
   }
 
   async deleteFile(fileId: string) {
-    if (!this.accessToken) throw new Error("Not logged in to Google Drive");
+    return this.executeWithRefresh(async () => {
+      if (!this.accessToken) throw new Error("Not logged in to Google Drive");
 
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-      },
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      });
+
+      // DELETE returns 204 No Content (empty body) on success
+      if (response.status === 401 || response.status === 403) {
+        const errorBody = await response.json().catch(() => ({}));
+        const msg = errorBody.error?.message || `HTTP ${response.status}`;
+        throw new Error(msg);
+      }
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error?.message || `Google Drive API Error: HTTP ${response.status}`);
+      }
     });
-
-    // DELETE returns 204 No Content (empty body) on success
-    if (response.status === 401 || response.status === 403) {
-      const errorBody = await response.json().catch(() => ({}));
-      const msg = errorBody.error?.message || `HTTP ${response.status}`;
-      throw new Error(msg);
-    }
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error?.message || `Google Drive API Error: HTTP ${response.status}`);
-    }
   }
 
   async downloadFile(fileId: string, onProgress?: (progress: number) => void): Promise<Blob> {
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-      },
+    return this.executeWithRefresh(async () => {
+      if (!this.accessToken) throw new Error("Not logged in to Google Drive");
+
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      });
+
+      if (!response.ok) throw new Error("Download failed");
+
+      if (!onProgress || !response.body) {
+        return response.blob();
+      }
+
+      const contentLength = response.headers.get("Content-Length");
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+      if (!total) {
+        return response.blob();
+      }
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        onProgress(Math.round((received / total) * 100));
+      }
+
+      return new Blob(chunks as BlobPart[]);
     });
-
-    if (!response.ok) throw new Error("Download failed");
-
-    if (!onProgress || !response.body) {
-      return response.blob();
-    }
-
-    const contentLength = response.headers.get("Content-Length");
-    const total = contentLength ? parseInt(contentLength, 10) : 0;
-
-    if (!total) {
-      return response.blob();
-    }
-
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let received = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      received += value.length;
-      onProgress(Math.round((received / total) * 100));
-    }
-
-    return new Blob(chunks as BlobPart[]);
   }
 
   async listFiles(): Promise<GoogleDriveFile[]> {

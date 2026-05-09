@@ -432,15 +432,6 @@ export default function App() {
     if (!isGoogleLoggedIn) return false;
     setIsSyncing(track.id);
     try {
-      const exportData: any = { ...track };
-      delete exportData.url;
-      delete exportData.localVideoUrl;
-      delete exportData.syncStatus;
-
-      const jsonBlob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-      const jsonFileName = `${track.title}.lsync.json`;
-      const driveFileId = await googleDriveService.uploadFile(jsonFileName, jsonBlob, "application/json", track.driveFileId);
-
       let driveAudioFileId = track.driveAudioFileId;
       const storedTracks = await get<any[]>('lingosync_tracks') || [];
       const storedTrack = storedTracks.find((t: any) => t.id === track.id);
@@ -450,6 +441,15 @@ export default function App() {
         const audioFileName = track.audioFileName || `${track.title}.mp3`;
         driveAudioFileId = await googleDriveService.uploadFile(audioFileName, audioBlob, storedTrack.audioType || 'audio/mpeg', track.driveAudioFileId);
       }
+
+      const exportData: any = { ...track, driveAudioFileId };
+      delete exportData.url;
+      delete exportData.localVideoUrl;
+      delete exportData.syncStatus;
+
+      const jsonBlob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+      const jsonFileName = `${track.title}.lsync.json`;
+      const driveFileId = await googleDriveService.uploadFile(jsonFileName, jsonBlob, "application/json", track.driveFileId);
 
       await updateTrackMetadata(track.id, { 
         driveFileId, 
@@ -488,7 +488,7 @@ export default function App() {
   };
 
   const downloadTrackFromDrive = async (track: AudioTrack) => {
-    if (!isGoogleLoggedIn || !track.driveFileId || !track.driveAudioFileId) return;
+    if (!isGoogleLoggedIn || !track.driveFileId) return;
     setIsSyncing(track.id);
     setDownloadProgress(prev => ({ ...prev, [track.id]: 0 }));
     try {
@@ -497,18 +497,26 @@ export default function App() {
       });
       const jsonData = JSON.parse(await jsonBlob.text());
       
-      const audioBlob = await googleDriveService.downloadFile(track.driveAudioFileId, (pct) => {
-        setDownloadProgress(prev => ({ ...prev, [track.id]: 50 + Math.round(pct / 2) }));
-      });
+      let audioBlob: Blob | null = null;
+      if (track.driveAudioFileId) {
+        try {
+          audioBlob = await googleDriveService.downloadFile(track.driveAudioFileId, (pct) => {
+            setDownloadProgress(prev => ({ ...prev, [track.id]: 50 + Math.round(pct / 2) }));
+          });
+        } catch (audioErr) {
+          console.warn("Audio download failed, continuing without audio:", audioErr);
+        }
+      }
       
+      const fallbackAudio = audioBlob || new Blob([new ArrayBuffer(44)], { type: 'audio/wav' });
       const newTrack: AudioTrack = {
         ...jsonData,
         id: track.id,
-        url: URL.createObjectURL(audioBlob),
-        syncStatus: 'synced'
+        url: audioBlob ? URL.createObjectURL(audioBlob) : URL.createObjectURL(fallbackAudio),
+        syncStatus: 'synced' as const
       };
       
-      await saveTrack(newTrack, audioBlob);
+      await saveTrack(newTrack, fallbackAudio);
       syncLatestToRef(newTrack);
       setPlaylist(prev => prev.map(t => t.id === track.id ? newTrack : t));
       setTimeout(() => evictCacheIfNeeded(), 0);
@@ -1909,7 +1917,7 @@ export default function App() {
         return;
       }
       if (track.syncStatus === 'missing_local' || track.syncStatus === 'cloud_only') {
-        if (isGoogleLoggedIn && track.driveFileId && track.driveAudioFileId) {
+        if (isGoogleLoggedIn && track.driveFileId) {
           setIsMenuOpen(true);
           downloadTrackFromDrive(track);
         }
