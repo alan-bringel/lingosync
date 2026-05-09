@@ -2218,15 +2218,17 @@ export default function App() {
         </div>
 
         {/* Sliding Foreground Content */}
-        <div
+        <motion.div
+          initial={false}
+          animate={{ x: isMenuOpen ? -135 : 0 }}
+          transition={{ type: "spring", stiffness: 400, damping: 40 }}
           className={cn(
             "relative z-10 w-full flex items-center p-4 rounded-xl transition-colors duration-300 text-left border-[1.5px] cursor-pointer",
-            "bg-[#111111]",
+            "bg-[#111111]", // Cor sólida mais escura, similar ao container de língua nativa
             currentTrackIndex === index && currentView === 'lesson'
               ? "border-white/20"
               : "border-white/10 hover:border-white/20"
           )}
-          style={{ transform: `translateX(${isMenuOpen ? -135 : 0}px)`, transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
           onClick={handleItemClick}
           role="button"
           tabIndex={0}
@@ -2243,31 +2245,28 @@ export default function App() {
             <p className={cn("text-xl font-semibold truncate transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
               {track.title}
             </p>
-            <div className="h-[36px] relative mt-2">
-              {/* Syncing progress - always rendered, opacity toggled */}
-              <div className={cn("absolute inset-0 flex flex-col justify-center space-y-1 transition-opacity duration-200", isSyncing === track.id ? "opacity-100" : "opacity-0 pointer-events-none")}>
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-[#827367] shrink-0" />
-                  <span className="text-xs text-[#827367] font-medium">
-                    {syncDirectionRef.current === 'upload'
-                      ? 'Enviando para a nuvem'
-                      : 'Baixando da nuvem'}
-                    <span className="animate-dots inline-block ml-0.5">...</span>
-                  </span>
-                  <span className="text-xs text-[#827367] font-medium w-9 text-right tabular-nums">{downloadProgress[track.id] || 0}%</span>
+            <div className="min-h-[36px]">
+              {isSyncing === track.id ? (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin text-[#827367] shrink-0" />
+                    <span className="text-xs text-[#827367] font-medium">
+                      {syncDirectionRef.current === 'upload'
+                        ? 'Enviando para a nuvem'
+                        : 'Baixando da nuvem'}
+                      <span className="animate-dots inline-block ml-0.5">...</span>
+                    </span>
+                    <span className="text-xs text-[#827367] font-medium w-9 text-right tabular-nums">{downloadProgress[track.id] || 0}%</span>
+                  </div>
+                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
+                  </div>
                 </div>
-                <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
-                </div>
-              </div>
-              {/* Missing local text */}
-              <div className={cn("absolute inset-0 flex items-center transition-opacity duration-200", track.syncStatus === 'missing_local' && isSyncing !== track.id ? "opacity-100" : "opacity-0 pointer-events-none")}>
-                <p className="text-xs text-[#827367]/60">Disponível na nuvem — clique para baixar</p>
-              </div>
-              {/* Error text */}
-              <div className={cn("absolute inset-0 flex items-center transition-opacity duration-200", track.syncStatus === 'error' && isSyncing !== track.id ? "opacity-100" : "opacity-0 pointer-events-none")}>
-                <p className="text-xs text-[#827367]/60">Erro ao sincronizar — clique na nuvem para tentar novamente</p>
-              </div>
+              ) : track.syncStatus === 'missing_local' ? (
+                <p className="text-xs text-[#827367]/60 mt-2">Disponível na nuvem — clique para baixar</p>
+              ) : track.syncStatus === 'error' ? (
+                <p className="text-xs text-[#827367]/60 mt-2">Erro ao sincronizar — clique na nuvem para tentar novamente</p>
+              ) : null}
             </div>
           </div>
 
@@ -2282,7 +2281,7 @@ export default function App() {
             <div className="w-[14px] h-[1.5px] bg-gray-500 group-hover/icon:bg-gray-300 rounded-full transition-colors" />
             <div className="w-[14px] h-[1.5px] bg-gray-500 group-hover/icon:bg-gray-300 rounded-full transition-colors" />
           </div>
-        </div>
+        </motion.div>
       </div>
     );
   };
