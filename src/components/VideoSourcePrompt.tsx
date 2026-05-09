@@ -25,10 +25,6 @@ export function VideoSourcePrompt({ isOpen, onClose, onContinue, fileName, isVid
     onContinue(trimmedUrl || undefined);
   };
 
-  const handleSkip = () => {
-    onContinue(undefined);
-  };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -61,7 +57,7 @@ export function VideoSourcePrompt({ isOpen, onClose, onContinue, fileName, isVid
                     {isVideo ? "Vídeo" : "Áudio"} carregado
                   </h3>
                 </div>
-                <button type="button" onClick={handleSkip} className="text-gray-500 hover:text-gray-300 transition-colors">
+                <button type="button" onClick={() => onClose()} className="text-gray-500 hover:text-gray-300 transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -117,14 +113,6 @@ export function VideoSourcePrompt({ isOpen, onClose, onContinue, fileName, isVid
                   className="w-full py-3 rounded-xl bg-[#827367] hover:bg-[#9a8c80] text-gray-100 font-bold uppercase tracking-widest transition-all shadow-lg shadow-[#827367]/10"
                 >
                   Continuar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSkip}
-                  className="w-full text-base font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors py-2"
-                >
-                  Pular
                 </button>
               </div>
             </form>

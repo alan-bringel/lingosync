@@ -193,3 +193,10 @@ html, body, #root, * {
 .animate-dots {
   animation: dots-pulse 1.5s ease-in-out infinite;
 }
+@keyframes wave-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+.animate-wave-pulse {
+  animation: wave-pulse 2s ease-in-out infinite;
+}
