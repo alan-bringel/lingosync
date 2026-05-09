@@ -191,6 +191,18 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }
   }, [isPausedExternally]);
 
+  // Stop playback when toggling focus mode
+  useEffect(() => {
+    if (isPlaying) {
+      if (track.youtubeId && ytPlayerRef.current && isYtReady) {
+        ytPlayerRef.current.pauseVideo?.();
+      } else if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setIsPlaying(false);
+    }
+  }, [isMaximized]);
+
   // Playback settings
   const [globalSpeed, setGlobalSpeed] = useState<number>(1);
   const [globalRepeat, setGlobalRepeat] = useState<number>(1);
