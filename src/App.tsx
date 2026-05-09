@@ -184,27 +184,61 @@ function LanguageSelector({ currentLanguage, onLanguageChange, exclude, classNam
 function splitTranslationByWordChunks(translation: string, chunkSizes: number[]): string[] {
   const normalized = (translation || "").trim();
   if (!normalized) return chunkSizes.map(() => "");
-  const words = normalized.split(/\s+/).filter(Boolean);
-  if (words.length <= 1) return chunkSizes.map((_, i) => (i === 0 ? normalized : ""));
+  const allWords = normalized.split(/\s+/).filter(Boolean);
+  if (allWords.length <= 1) return chunkSizes.map((_, i) => (i === 0 ? normalized : ""));
 
-  const total = chunkSizes.reduce((acc, n) => acc + n, 0) || 1;
-  const result: string[] = [];
-  let cursor = 0;
+  const sentences: string[] = [];
+  const sentenceRegex = /[^.!?]*[.!?]+/g;
+  let match;
+  while ((match = sentenceRegex.exec(normalized)) !== null) {
+    sentences.push(match[0].trim());
+  }
+  const remainder = normalized.replace(sentenceRegex, "").trim();
+  if (remainder) sentences.push(remainder);
+  if (sentences.length === 0) sentences.push(normalized);
 
-  chunkSizes.forEach((size, idx) => {
-    const remainingChunks = chunkSizes.length - idx;
-    const remainingWords = words.length - cursor;
-    if (remainingChunks <= 1) {
-      result.push(words.slice(cursor).join(" "));
-      cursor = words.length;
-      return;
+  const sentenceWordCounts = sentences.map(s => s.split(/\s+/).filter(Boolean).length);
+  const totalTranslationWords = sentenceWordCounts.reduce((a, b) => a + b, 0);
+  const totalTextWords = chunkSizes.reduce((a, b) => a + b, 0);
+
+  const result: string[] = chunkSizes.map(() => "");
+  let sentenceIdx = 0;
+
+  chunkSizes.forEach((chunkSize, chunkIdx) => {
+    if (sentenceIdx >= sentences.length) return;
+
+    const targetWords = (chunkSize / totalTextWords) * totalTranslationWords;
+    let accumulatedWords = 0;
+    const accumulatedSentences: string[] = [];
+
+    while (sentenceIdx < sentences.length) {
+      const nextWords = sentenceWordCounts[sentenceIdx];
+
+      if (chunkIdx === chunkSizes.length - 1) {
+        accumulatedSentences.push(sentences[sentenceIdx]);
+        accumulatedWords += nextWords;
+        sentenceIdx++;
+        continue;
+      }
+
+      const remainingChunks = chunkSizes.length - 1 - chunkIdx;
+      const remainingSentenceWords = sentenceWordCounts.slice(sentenceIdx).reduce((a, b) => a + b, 0);
+      const minNeeded = remainingSentenceWords - (remainingChunks * 3);
+
+      if (accumulatedWords > 0 && accumulatedWords + nextWords > targetWords * 1.5 && accumulatedWords >= minNeeded) {
+        break;
+      }
+
+      accumulatedSentences.push(sentences[sentenceIdx]);
+      accumulatedWords += nextWords;
+      sentenceIdx++;
+
+      if (accumulatedWords >= targetWords && accumulatedWords >= 1) {
+        break;
+      }
     }
 
-    const target = Math.round((size / total) * words.length);
-    const safeMin = Math.max(1, target);
-    const safeTake = Math.min(remainingWords - (remainingChunks - 1), safeMin);
-    result.push(words.slice(cursor, cursor + safeTake).join(" "));
-    cursor += safeTake;
+    result[chunkIdx] = accumulatedSentences.join(" ");
   });
 
   return result;
