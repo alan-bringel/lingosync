@@ -898,7 +898,7 @@ export default function App() {
       const transcript: TranscriptSegment[] = rawTranscript.map((seg, i) => {
         const desiredStart = Math.max(seg.start - SEGMENT_PREROLL, previousEnd, 0);
         const start = desiredStart;
-        const end = seg.end + SEGMENT_POSTROLL;
+        const end = Math.max(seg.end - SEGMENT_POSTROLL, start + 0.3);
         previousEnd = end;
         return {
           ...seg,
