@@ -710,18 +710,6 @@ export default function App() {
     }
   }, []);
 
-  // Refresh token periodically so the user stays logged in
-  useEffect(() => {
-    if (!isGoogleLoggedIn) return;
-    const interval = setInterval(async () => {
-      const refreshed = await googleDriveService.refreshTokenSilently();
-      if (!refreshed) {
-        setIsGoogleLoggedIn(false);
-      }
-    }, 25 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [isGoogleLoggedIn]);
-
   const [currentView, setCurrentView] = useState<View>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem('lingosync_current_view') as View) || 'home';
@@ -1016,11 +1004,6 @@ export default function App() {
         await transcribeAudio(audioBlob, nativeLanguage, assemblyAiApiKey, deepseekApiKey, hasBillingEnabled)
       );
 
-      const nextLessonNumber = playlist.reduce((max, t) => {
-        const num = t.lessonNumber ?? 0;
-        return num > max ? num : max;
-      }, 0) + 1;
-
       const newTrack: AudioTrack = {
         id: Date.now().toString(36) + Math.random().toString(36).substring(2),
         title: title,
@@ -1028,8 +1011,7 @@ export default function App() {
         url: audioUrl,
         coverUrl: `https://picsum.photos/seed/${title}/400/400`,
         transcript: transcript,
-        language: currentLanguage,
-        lessonNumber: nextLessonNumber
+        language: currentLanguage
       };
 
       await saveTrack(newTrack, audioBlob);
@@ -1810,11 +1792,6 @@ export default function App() {
         await transcribeAudio(file, nativeLanguage, effectiveAssemblyKey, effectiveDeepseekKey, hasBillingEnabled)
       );
 
-      const nextLessonNumber = playlist.reduce((max, t) => {
-        const num = t.lessonNumber ?? 0;
-        return num > max ? num : max;
-      }, 0) + 1;
-
       const newTrack: AudioTrack = {
         id: Date.now().toString(36) + Math.random().toString(36).substring(2),
         title: file.name.replace(/\.[^/.]+$/, ""),
@@ -1825,8 +1802,7 @@ export default function App() {
         isVideo: isVideo || !!youtubeId,
         audioFileName: file.name,
         language: currentLanguage,
-        youtubeId: youtubeId,
-        lessonNumber: nextLessonNumber
+        youtubeId: youtubeId
       };
 
       if (isVideo && !youtubeId) {
@@ -2412,7 +2388,7 @@ export default function App() {
                               disabled={isTranscribing}
                               className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
                             >
-                              <AudioLines className={cn("w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]", isTranscribing && "animate-wave-pulse")} />
+                              <AudioLines className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
                               <div className="flex flex-col items-center text-center">
                                 <span className="text-sm font-bold uppercase tracking-widest">
                                   {isTranscribing
