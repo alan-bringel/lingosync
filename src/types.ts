@@ -10,7 +10,7 @@ export interface Flashcard {
   translation: string;
   explanation: string;
   audioUrl?: string;
-  audioBase64?: string;
+  audioBase64?: Record<string, string>;
   audioVoiceId?: string;
 }
 

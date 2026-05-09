@@ -285,7 +285,7 @@ export default function App() {
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
-  const dirtyTracksRef = useRef<Set<string>>(new Set());
+  const dirtyTracksRef = useRef<Map<string, AudioTrack | null>>(new Map());
   const syncingTrackIdRef = useRef<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -312,7 +312,7 @@ export default function App() {
     if (!isGoogleLoggedIn) return;
 
     if (syncingTrackIdRef.current === trackId) {
-      dirtyTracksRef.current.add(trackId);
+      dirtyTracksRef.current.set(trackId, trackData || null);
       return;
     }
 
@@ -334,8 +334,9 @@ export default function App() {
     syncingTrackIdRef.current = null;
 
     if (dirtyTracksRef.current.has(trackId)) {
+      const pendingData = dirtyTracksRef.current.get(trackId);
       dirtyTracksRef.current.delete(trackId);
-      performSync(trackId);
+      performSync(trackId, pendingData || undefined);
     }
   };
 
@@ -381,10 +382,7 @@ export default function App() {
         const delay = Math.min(1000 * Math.pow(2, retryCount), 15000);
         console.log(`[LingoSync] Retrying sync in ${delay}ms (attempt ${retryCount + 1}/5)...`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        const freshTrack = playlist.find(t => t.id === track.id);
-        if (freshTrack) {
-          return syncTrackToDrive(freshTrack, retryCount + 1);
-        }
+        return syncTrackToDrive(track, retryCount + 1);
       } else {
         await updateTrackMetadata(track.id, { syncStatus: 'error' });
         setPlaylist(prev => prev.map(t => t.id === track.id ? { ...t, syncStatus: 'error' } : t));
@@ -884,9 +882,8 @@ export default function App() {
       const lsyncFiles = files.filter(f => f.name.endsWith('.lsync.json'));
       const driveFileIds = new Set(lsyncFiles.map(f => f.id));
 
-      // Clean up stale missing_local/cloud_only tracks that no longer exist on Drive
+      // Remove ANY track whose Drive file no longer exists (deleted from another device)
       const staleTracks = playlist.filter(t =>
-        (t.syncStatus === 'missing_local' || t.syncStatus === 'cloud_only') &&
         t.driveFileId &&
         !driveFileIds.has(t.driveFileId)
       );
@@ -961,6 +958,18 @@ export default function App() {
       checkDriveRestore();
     }
   }, [isGoogleLoggedIn, isLoading, checkDriveRestore]);
+
+  // Check Drive for deleted lessons when navigating to library
+  const lastLibraryCheckRef = useRef(0);
+  useEffect(() => {
+    if (currentView === 'library' && isGoogleLoggedIn && !isLoading) {
+      const now = Date.now();
+      if (now - lastLibraryCheckRef.current > 5000) {
+        lastLibraryCheckRef.current = now;
+        checkDriveRestore();
+      }
+    }
+  }, [currentView, isGoogleLoggedIn, isLoading, checkDriveRestore]);
 
   const toggleGlobalKnownWord = (word: string) => {
     const lower = word.toLowerCase();

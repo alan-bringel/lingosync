@@ -83,6 +83,19 @@ export function FlashcardsView({
   const isKnown = currentCard ? globalKnownWords.includes(currentCard.expression.toLowerCase()) : false;
   const isAudioDataUri = (audio?: string) => !!audio && audio.startsWith("data:audio/");
 
+  const getAudioForVoice = (card: Flashcard, voiceId: string): string | undefined => {
+    const ab = card.audioBase64;
+    if (!ab) return undefined;
+    if (typeof ab === 'string') return ab;
+    return ab[voiceId];
+  };
+
+  const setAudioForVoice = (card: Flashcard, voiceId: string, base64: string): Record<string, string> => {
+    const ab = card.audioBase64;
+    const existing = (ab && typeof ab === 'object') ? ab : {};
+    return { ...existing, [voiceId]: base64 };
+  };
+
   const playAudioElement = async (src: string) => {
     return new Promise<void>((resolve, reject) => {
       try {
@@ -210,24 +223,25 @@ export function FlashcardsView({
 
     // Play already-generated flashcard audio directly if it matches the selected voice.
     if (!forceRegenerate) {
-      if (currentCard.audioBase64 && currentCard.audioVoiceId === selectedVoice) {
+      const existingAudioForVoice = getAudioForVoice(currentCard, selectedVoice);
+      if (existingAudioForVoice && currentCard.audioVoiceId === selectedVoice) {
         // Check if audio is silent (mostly zeros in base64)
         // We check if a significant portion of the start is silent (20000 chars is ~300ms)
-        const isLikelySilent = currentCard.audioBase64.length > 20000 && /^A+$/.test(currentCard.audioBase64.substring(0, 20000));
+        const isLikelySilent = existingAudioForVoice.length > 20000 && /^A+$/.test(existingAudioForVoice.substring(0, 20000));
         
         if (!isLikelySilent) {
           // Try HTML5 Audio first (Most reliable for iOS Safari MP3 base64)
-          const playedWithHtml = await playBase64AsDataUri(currentCard.audioBase64);
+          const playedWithHtml = await playBase64AsDataUri(existingAudioForVoice);
           if (playedWithHtml) return;
 
           // Try Web Audio API next
-          const playedWithWebAudio = await playWithWebAudio(currentCard.audioBase64);
+          const playedWithWebAudio = await playWithWebAudio(existingAudioForVoice);
           if (playedWithWebAudio) return;
           
           // If Web Audio API didn't work, try playPcmBase64
           try {
             console.log("Trying playPcmBase64");
-            await playPcmBase64(currentCard.audioBase64);
+            await playPcmBase64(existingAudioForVoice);
             console.log("playPcmBase64 succeeded");
             return;
           } catch (err2) {
@@ -260,7 +274,7 @@ export function FlashcardsView({
         
         // Save to current flashcard for future offline exports
         const newFlashcards = [...flashcards];
-        newFlashcards[currentIndex] = { ...currentCard, audioBase64: cached, audioVoiceId: selectedVoice };
+        newFlashcards[currentIndex] = { ...currentCard, audioBase64: setAudioForVoice(currentCard, selectedVoice, cached), audioVoiceId: selectedVoice };
         onUpdateTrack({ flashcards: newFlashcards });
         
         // Try HTML5 Audio first
@@ -304,7 +318,7 @@ export function FlashcardsView({
     
     // Save to flashcard
     const newFlashcards = [...flashcards];
-    newFlashcards[currentIndex] = { ...currentCard, audioBase64: base64Audio, audioVoiceId: selectedVoice };
+    newFlashcards[currentIndex] = { ...currentCard, audioBase64: setAudioForVoice(currentCard, selectedVoice, base64Audio), audioVoiceId: selectedVoice };
     onUpdateTrack({ flashcards: newFlashcards });
     
     // Try HTML5 Audio first
