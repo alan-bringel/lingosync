@@ -55,7 +55,7 @@ async function createTranscript(uploadUrl: string, apiKey: string): Promise<stri
 }
 
 // ─── Poll until done ──────────────────────────────────────────────────────────
-interface AssemblyWord {
+export interface AssemblyWord {
   text: string;
   start: number; // ms
   end: number;   // ms
@@ -173,4 +173,33 @@ export async function transcribeAudioAssemblyAI(
 
   // 4. Group into loose chunks
   return buildLooseChunks(result.words);
+}
+
+/**
+ * Transcribes audio using AssemblyAI and returns raw word-level data with precise timestamps.
+ */
+export async function transcribeAudioRawWords(
+  audioBlob: Blob,
+  apiKey: string
+): Promise<{ text: string; words: AssemblyWord[] }> {
+  if (!apiKey || apiKey.trim() === "") {
+    throw new Error(
+      "AssemblyAI API Key não configurada. Configure-a nas Configurações do app."
+    );
+  }
+
+  const uploadUrl = await uploadAudio(audioBlob, apiKey.trim());
+  const transcriptId = await createTranscript(uploadUrl, apiKey.trim());
+  const result = await pollTranscript(transcriptId, apiKey.trim());
+
+  if (!result.words || result.words.length === 0) {
+    throw new Error(
+      "A AssemblyAI processou o áudio, mas nenhuma palavra foi detectada. Verifique se o áudio contém voz em inglês."
+    );
+  }
+
+  return {
+    text: result.text || "",
+    words: result.words,
+  };
 }
