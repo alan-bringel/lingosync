@@ -1122,7 +1122,14 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     return (
                       <div className="space-y-2">
                         <div className="flex justify-between items-start group/title pb-1">
-                          <div className="text-[1.3rem] sm:text-xl leading-relaxed flex-1">
+                          <div
+                            onDoubleClick={() => {
+                              if (isDictionaryModeGlobal) {
+                                playSegment(segment.start, segment.end, sIdx);
+                              }
+                            }}
+                            className="text-[1.3rem] sm:text-xl leading-relaxed flex-1"
+                          >
                             {renderSegmentText(segment.text, true, sIdx)}
                           </div>
                           {isEditModeGlobal && (
@@ -1155,7 +1162,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                                 }
                               }}
                               className={cn(
-                                "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed",
+                                "text-lg sm:text-base text-gray-600 italic font-serif leading-relaxed",
                                 isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
                               )}
                             >
@@ -1172,10 +1179,10 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
             <div className="flex items-center justify-between px-6 sm:px-10 pb-4 shrink-0">
               <button
                 onClick={() => setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length)}
-                className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
+                className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
                 title="Segmento anterior"
               >
-                <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-9 sm:h-9 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                <svg viewBox="0 0 24 24" className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" xmlns="http://www.w3.org/2000/svg">
                   <path d="M18 4 L6 12 L18 20 Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
                 </svg>
               </button>
@@ -1184,10 +1191,10 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
               </span>
               <button
                 onClick={() => setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length)}
-                className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
+                className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
                 title="Próximo segmento"
               >
-                <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-9 sm:h-9 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                <svg viewBox="0 0 24 24" className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" xmlns="http://www.w3.org/2000/svg">
                   <path d="M6 4 L18 12 L6 20 Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
                 </svg>
               </button>
@@ -1306,6 +1313,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 key={sIdx}
                 id={`segment-${sIdx}`}
                 onClick={(e) => editingIndex === null && handleSegmentClick(e, sIdx)}
+                onDoubleClick={() => {
+                  if (editingIndex === null && isDictionaryModeGlobal) {
+                    const seg = track.transcript[sIdx];
+                    playSegment(seg.start, seg.end, sIdx);
+                  }
+                }}
                 className={cn(
                   "group transition-all duration-300 rounded-xl p-3 sm:p-4",
                   editingIndex === sIdx ? "bg-white/[0.05] border-[1.5px] border-white/20" : "cursor-pointer"
@@ -1443,7 +1456,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                                 }
                               }}
                               className={cn(
-                                "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
+                                "text-lg sm:text-base text-gray-600 italic font-serif leading-relaxed overflow-hidden",
                                 isDictionaryModeGlobal && "cursor-pointer hover:text-gray-200 transition-colors"
                               )}
                             >
