@@ -655,7 +655,7 @@ export default function App() {
     } catch (error: any) {
       if (error.message !== 'user_cancelled' && error.message !== 'access_denied') {
         console.error("Google login failed:", error);
-        alert("Falha ao conectar com Google Drive. Tente novamente.");
+        alert("Falha ao conectar com a nuvem. Tente novamente.");
       }
     }
   };
@@ -1180,7 +1180,7 @@ export default function App() {
       if (missingFiles.length > 0) {
         const confirmRestore = await showConfirm(
           "Lições encontradas na nuvem",
-          `Encontramos ${missingFiles.length} lição(ões) sua(s) no Google Drive que não estão salvas neste app. Deseja restaurá-las?`
+          `Encontramos ${missingFiles.length} lição(ões) sua(s) na nuvem que não estão salvas neste app. Deseja restaurá-las?`
         );
         if (confirmRestore) {
           for (const file of missingFiles) {
@@ -1852,7 +1852,7 @@ export default function App() {
     const confirmed = await showConfirm(
       deleteFromDrive ? "Excluir lição" : "Excluir lição",
       deleteFromDrive 
-        ? "Tem certeza que deseja excluir esta lição deste app e do Google Drive? Esta ação não pode ser desfeita."
+        ? "Tem certeza que deseja excluir esta lição deste app e da nuvem? Esta ação não pode ser desfeita."
         : "Tem certeza que deseja excluir esta lição deste app? Se ela estiver sincronizada, você poderá baixá-la novamente depois."
     );
     if (!confirmed) return;
@@ -1864,7 +1864,7 @@ export default function App() {
           deletedDriveIdsRef.current.add(track.driveFileId);
           localStorage.setItem('lingosync_deleted_drive_ids', JSON.stringify([...deletedDriveIdsRef.current]));
         }
-        await showConfirm("Erro", "Não foi possível excluir do Google Drive após várias tentativas. A lição será removida apenas localmente.");
+        await showConfirm("Erro", "Não foi possível excluir da nuvem após várias tentativas. A lição será removida apenas localmente.");
       }
     }
 
@@ -1995,7 +1995,7 @@ export default function App() {
                       size="icon"
                       onClick={handleGoogleLogin}
                       className="text-gray-500 hover:text-gray-300 h-10 w-10 rounded-full hover:bg-white/5 flex items-center justify-center shrink-0"
-                      title="Conectar ao Google Drive"
+                      title="Conectar à nuvem"
                     >
                       <UserCircle className="w-10 h-10" />
                     </Button>
@@ -2170,12 +2170,16 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-3 h-3 animate-spin text-[#827367]" />
                   <span className="text-xs text-[#827367] font-medium">
-                    {syncDirectionRef.current === 'upload' ? 'Enviando para a nuvem' : 'Baixando da nuvem'}... {downloadProgress[track.id] || 0}%
+                    {syncDirectionRef.current === 'upload'
+                      ? 'Enviando para a nuvem'
+                      : `Baixando da nuvem... ${downloadProgress[track.id] || 0}%`}
                   </span>
                 </div>
-                <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
-                </div>
+                {syncDirectionRef.current !== 'upload' && (
+                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
+                  </div>
+                )}
               </div>
             )}
             {track.syncStatus === 'missing_local' && isSyncing !== track.id && (
@@ -3011,7 +3015,7 @@ export default function App() {
                       <div className="space-y-4">
                         <div className="p-4 rounded-2xl bg-[#827367]/5 border border-[#827367]/10">
                           <p className="text-base text-[#a39487] font-medium mb-4">
-                            O áudio está salvo no Google Drive. Clique abaixo para baixá-lo.
+                            O áudio está salvo na nuvem. Clique abaixo para baixá-lo.
                           </p>
                           <Button
                             onClick={() => {
