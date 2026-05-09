@@ -1759,8 +1759,8 @@ export default function App() {
           requestSyncImmediate(trackId);
         }
 
-        return prev.map((t, i) =>
-          i === currentTrackIndex ? { ...t, ...updates } : t
+        return prev.map(t =>
+          t.id === trackId ? { ...t, ...updates } : t
         );
       });
     }
