@@ -1169,7 +1169,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-center gap-6 sm:gap-8 pb-4 shrink-0">
+            <div className="flex items-center justify-between px-6 sm:px-10 pb-4 shrink-0">
               <button
                 onClick={() => setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length)}
                 className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
