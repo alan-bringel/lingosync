@@ -69,6 +69,12 @@ export function FlashcardsView({
     }
   }, [initialIndex, flashcards.length]);
 
+  // Abre o flashcard já virado se veio do dicionário (clique em palavra na transcrição)
+  useEffect(() => {
+    if (returnSegmentIndex !== null && returnSegmentIndex !== undefined) {
+      setIsFlipped(true);
+    }
+  }, [returnSegmentIndex]);
 
   const variants = {
     enter: (dir: number) => ({ x: dir > 0 ? '100%' : '-100%' }),

@@ -1029,6 +1029,73 @@ export default function App() {
     }
   }, [currentView, isGoogleLoggedIn, isLoading, checkDriveRestore]);
 
+  // Periodic sync: check Drive for current lesson changes every 30 seconds
+  const lastPeriodicSyncRef = useRef(0);
+  const periodicSyncCurrentTrack = async () => {
+    const track = playlist[currentTrackIndex];
+    if (!track?.driveFileId || !isGoogleLoggedIn || currentView !== 'lesson') return;
+    try {
+      const jsonBlob = await googleDriveService.downloadFile(track.driveFileId);
+      const jsonData = JSON.parse(await jsonBlob.text());
+      const remoteTrack = jsonData as AudioTrack;
+
+      const remoteKnown = (remoteTrack.knownWords || []).map((w: string) => w.toLowerCase());
+      const localKnown = (track.knownWords || []).map((w: string) => w.toLowerCase());
+
+      let changed = false;
+
+      // Merge knownWords: keep superset of both sides
+      const mergedKnown = [...new Set([...localKnown, ...remoteKnown])];
+      if (mergedKnown.length !== localKnown.length) {
+        changed = true;
+      }
+
+      // Merge flashcards audioBase64
+      let mergedFlashcards = track.flashcards ? [...track.flashcards] : [];
+      if (remoteTrack.flashcards && mergedFlashcards.length > 0) {
+        for (let i = 0; i < remoteTrack.flashcards.length; i++) {
+          const rc = remoteTrack.flashcards[i];
+          const lc = mergedFlashcards[i];
+          if (lc && rc && lc.id === rc.id && rc.audioBase64) {
+            const mergedAudio = { ...(typeof lc.audioBase64 === 'object' ? lc.audioBase64 : {}), ...(typeof rc.audioBase64 === 'object' ? rc.audioBase64 : {}) };
+            if (Object.keys(mergedAudio).length > Object.keys(typeof lc.audioBase64 === 'object' ? lc.audioBase64 : {}).length) {
+              mergedFlashcards[i] = { ...lc, audioBase64: mergedAudio };
+              changed = true;
+            }
+          }
+        }
+      }
+
+      if (!changed) return;
+
+      const updatedTrack = { ...track, knownWords: mergedKnown, flashcards: mergedFlashcards };
+
+      if (isGoogleLoggedIn) {
+        syncLatestToRef(updatedTrack);
+        requestSyncImmediate(track.id);
+      }
+
+      await updateTrackMetadata(track.id, { knownWords: mergedKnown, flashcards: mergedFlashcards });
+      refreshGlobalKnownWords(playlist.map(t => t.id === track.id ? updatedTrack : t));
+
+      setPlaylist(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
+    } catch (err) {
+      console.debug("Periodic sync check error:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!isGoogleLoggedIn || isLoading || currentView !== 'lesson') return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      if (now - lastPeriodicSyncRef.current > 15000) {
+        lastPeriodicSyncRef.current = now;
+        periodicSyncCurrentTrack();
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [isGoogleLoggedIn, isLoading, currentView, currentTrackIndex, playlist.length]);
+
   const toggleGlobalKnownWord = (word: string) => {
     const lower = word.toLowerCase();
     setGlobalKnownWords(prev => {
