@@ -408,9 +408,9 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     const pattern = /([a-zA-Z']+)/g;
     const parts = text.split(pattern);
 
-    // Active uses standard brown, Inactive uses a more discreet faded brown
-    const knownColorClass = isActive ? "text-[#827367]" : "text-[#827367]/50";
-    const baseColorClass = isActive ? "text-gray-100" : "text-gray-500";
+    // Active uses a slightly muted brown, Inactive uses a more discreet faded brown
+    const knownColorClass = isActive ? "text-[#827367]/85" : "text-[#827367]/50";
+    const baseColorClass = isActive ? "text-gray-200" : "text-gray-500";
 
     return parts.map((part, i) => {
       const isWord = pattern.test(part);
@@ -1104,18 +1104,8 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
             {isMaximized ? (
               <div className="h-full flex flex-col">
                 <div className="flex-1 flex items-center justify-center">
-                  <div className="flex items-center gap-4 sm:gap-8 w-full max-w-4xl mx-auto px-2">
-                    <button
-                      onClick={() => setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length)}
-                      className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-gray-500 hover:text-gray-200 transition-all active:scale-90 rounded-2xl hover:bg-white/5"
-                      title="Segmento anterior"
-                    >
-                      <svg viewBox="0 0 24 24" className="w-12 h-12 sm:w-14 sm:h-14 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M16 5 L6 12 L16 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      </svg>
-                    </button>
-
-                    <div className="flex-1 min-w-0">
+                  <div className="w-full max-w-4xl mx-auto px-6 sm:px-10">
+                    <div className="min-w-0">
                       {(() => {
                         const segment = track.transcript[focusSegmentIndex];
                         const sIdx = focusSegmentIndex;
@@ -1163,22 +1153,30 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                         );
                       })()}
                     </div>
-
-                    <button
-                      onClick={() => setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length)}
-                      className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-gray-500 hover:text-gray-200 transition-all active:scale-90 rounded-2xl hover:bg-white/5"
-                      title="Próximo segmento"
-                    >
-                      <svg viewBox="0 0 24 24" className="w-12 h-12 sm:w-14 sm:h-14 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8 5 L18 12 L8 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      </svg>
-                    </button>
                   </div>
                 </div>
-                <div className="text-center pb-4">
-                  <span className="text-sm font-mono text-gray-500">
+                <div className="flex items-center justify-center gap-6 sm:gap-8 pb-6">
+                  <button
+                    onClick={() => setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length)}
+                    className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 transition-all active:scale-90 hover:bg-white/5 rounded-xl"
+                    title="Segmento anterior"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 4 L6 12 L18 20 Z" fill="currentColor" />
+                    </svg>
+                  </button>
+                  <span className="text-sm font-mono text-gray-500 select-none">
                     {focusSegmentIndex + 1} / {track.transcript.length}
                   </span>
+                  <button
+                    onClick={() => setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length)}
+                    className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 transition-all active:scale-90 hover:bg-white/5 rounded-xl"
+                    title="Próximo segmento"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6 4 L18 12 L6 20 Z" fill="currentColor" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             ) : (
