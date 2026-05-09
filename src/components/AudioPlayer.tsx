@@ -151,8 +151,8 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     isLongPressRef.current = false;
     longPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
-      onVideoSyncClick?.(); // Open video source modal on long press
-    }, 500); // 500ms for long press
+      onVideoSyncClick?.();
+    }, 500);
   };
 
   const handleVideoTouchEnd = (e: React.PointerEvent) => {
@@ -160,14 +160,17 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+  };
 
-    // If it wasn't a long press, it's a normal toggle
-    if (!isLongPressRef.current) {
-      if (hasVideo) {
-        setShowVideo(!showVideo);
-      } else {
-        onVideoSyncClick?.();
-      }
+  const handleYoutubeClick = () => {
+    if (isLongPressRef.current) {
+      isLongPressRef.current = false;
+      return;
+    }
+    if (hasVideo && (!track.youtubeId || isYtReady)) {
+      setShowVideo(!showVideo);
+    } else {
+      onVideoSyncClick?.();
     }
   };
 
@@ -256,11 +259,19 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     if (!track.youtubeId) return;
 
     setYtError(false);
+    setIsYtReady(false);
     let destroyed = false;
     const ytContainerId = 'yt-player-element';
 
+    const readyTimeout = setTimeout(() => {
+      if (!destroyed) {
+        setYtError(true);
+      }
+    }, 8000);
+
     const onPlayerReady = (event: any) => {
       if (destroyed) return;
+      clearTimeout(readyTimeout);
       setIsYtReady(true);
       setDuration(event.target.getDuration());
     };
@@ -1587,6 +1598,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={handleYoutubeClick}
                   onPointerDown={handleVideoTouchStart}
                   onPointerUp={handleVideoTouchEnd}
                   onPointerLeave={() => {
@@ -1597,9 +1609,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                   }}
                   className={cn(
                     "transition-all active:scale-90 w-14 h-14 sm:w-12 sm:h-12",
-                    hasVideo && showVideo ? "text-gray-200 hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                    hasVideo && (!track.youtubeId || isYtReady) && showVideo ? "text-gray-200 hover:text-white/80" : "text-gray-500 hover:text-gray-200"
                   )}
-                  title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
+                  title={
+                    hasVideo && (!track.youtubeId || isYtReady)
+                      ? (showVideo ? "Ocultar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)")
+                      : "Sincronizar Vídeo"
+                  }
                 >
                   <Youtube className="w-14 h-14 sm:w-12 sm:h-12 shrink-0" />
                 </Button>
