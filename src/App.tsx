@@ -285,7 +285,31 @@ export default function App() {
   // performSync SEMPRE le deste ref, garantindo que o sync nunca use dados parciais.
   const latestTrackRef = useRef<Map<string, AudioTrack>>(new Map());
   const syncLatestToRef = (track: AudioTrack) => {
-    latestTrackRef.current.set(track.id, track);
+    const existing = latestTrackRef.current.get(track.id);
+    if (!existing) {
+      latestTrackRef.current.set(track.id, track);
+      return;
+    }
+    const merged = { ...existing, ...track };
+    if (track.flashcards && existing.flashcards) {
+      merged.flashcards = existing.flashcards.map((ec, i) => {
+        const tc = track.flashcards![i];
+        if (tc && ec.id === tc.id) {
+          const mergedAudio: Record<string, string> = {};
+          if (ec.audioBase64 && typeof ec.audioBase64 === 'object') {
+            Object.assign(mergedAudio, ec.audioBase64);
+          }
+          if (tc.audioBase64 && typeof tc.audioBase64 === 'object') {
+            Object.assign(mergedAudio, tc.audioBase64);
+          } else if (tc.audioBase64 && typeof tc.audioBase64 === 'string') {
+            mergedAudio._legacy = tc.audioBase64;
+          }
+          return { ...ec, ...tc, audioBase64: mergedAudio };
+        }
+        return tc || ec;
+      });
+    }
+    latestTrackRef.current.set(track.id, merged as AudioTrack);
   };
   const syncManyToRef = (tracks: AudioTrack[]) => {
     for (const t of tracks) {
@@ -1440,18 +1464,23 @@ export default function App() {
   const handleUpdateTrack = (updatedTrack: Partial<AudioTrack>) => {
     const trackId = currentTrack?.id;
     if (trackId) {
-      const { url, localVideoUrl, ...updates } = updatedTrack; // never update transient URLs via metadata
+      const { url, localVideoUrl, ...updates } = updatedTrack;
       updateTrackMetadata(trackId, updates);
-      
-      // Auto-sync to Drive whenever any track data changes (flashcards, knownWords, transcript, lessonNumber, etc.)
-      if (isGoogleLoggedIn) {
-        syncLatestToRef({ ...currentTrack, ...updatedTrack } as AudioTrack);
-        requestSyncImmediate(trackId);
-      }
+
+      setPlaylist(prev => {
+        const track = prev.find(t => t.id === trackId);
+        if (!track) return prev;
+
+        if (isGoogleLoggedIn) {
+          syncLatestToRef({ ...track, ...updates } as AudioTrack);
+          requestSyncImmediate(trackId);
+        }
+
+        return prev.map((t, i) =>
+          i === currentTrackIndex ? { ...t, ...updates } : t
+        );
+      });
     }
-    setPlaylist(prev => prev.map((track, i) =>
-      i === currentTrackIndex ? { ...track, ...updatedTrack } : track
-    ));
   };
 
   const deleteFromDriveWithRetry = async (track: AudioTrack, retryCount = 0): Promise<boolean> => {
