@@ -2274,26 +2274,22 @@ export default function App() {
                   >
                     {!isMaximized && (
                       <div className="pb-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            onClick={() => setCurrentView('library')}
-                            className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10 whitespace-nowrap"
-                          >
-                            <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
-                            <span>Biblioteca</span>
-                          </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setCurrentView('library')}
+                          className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10 whitespace-nowrap"
+                        >
+                          <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
+                          <span>Biblioteca</span>
+                        </Button>
 
+                        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center">
                           <button
                             onClick={() => setIsMaximized(prev => !prev)}
                             className="p-1.5 rounded-lg transition-colors duration-200 text-gray-500 hover:text-white hover:bg-white/5"
-                            title={isMaximized ? "Mostrar controles" : "Maximizar visualização"}
+                            title="Maximizar visualização"
                           >
-                            {isMaximized ? (
-                              <EyeOff className="w-[18px] h-[18px] text-white" />
-                            ) : (
-                              <Eye className="w-[18px] h-[18px]" />
-                            )}
+                            <Eye className="w-5 h-5" />
                           </button>
                         </div>
 
@@ -2317,6 +2313,18 @@ export default function App() {
                             </>
                           )}
                         </Button>
+                      </div>
+                    )}
+
+                    {isMaximized && (
+                      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
+                        <button
+                          onClick={() => setIsMaximized(prev => !prev)}
+                          className="p-1.5 rounded-lg transition-colors duration-200 text-white/70 hover:text-white hover:bg-white/10"
+                          title="Mostrar controles"
+                        >
+                          <EyeOff className="w-5 h-5" />
+                        </button>
                       </div>
                     )}
                     <div className="flex-1 min-h-0 h-full w-full overflow-hidden">
