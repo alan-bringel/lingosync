@@ -247,52 +247,74 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   }, [track.youtubeId]);
 
   useEffect(() => {
-    if (track.youtubeId) {
-      const onPlayerReady = (event: any) => {
-        setIsYtReady(true);
-        setDuration(event.target.getDuration());
-      };
+    if (!track.youtubeId) return;
 
-      const onPlayerStateChange = (event: any) => {
-        const state = event.data;
-        if (state === 1) setIsPlaying(true); // Playing
-        else if (state === 2) setIsPlaying(false); // Paused
-        else if (state === 0) { // Ended
-          handleEndedInternal();
-        }
-      };
+    let destroyed = false;
+    const ytContainerId = 'yt-player-element';
 
-      const initYt = () => {
-        ytPlayerRef.current = new window.YT.Player('yt-player-element', {
-          videoId: track.youtubeId,
-          playerVars: {
-            autoplay: 0,
-            controls: 0,
-            disablekb: 1,
-            modestbranding: 1,
-            rel: 0,
-            origin: window.location.origin
-          },
-          events: {
-            onReady: onPlayerReady,
-            onStateChange: onPlayerStateChange
-          }
-        });
-      };
+    const onPlayerReady = (event: any) => {
+      if (destroyed) return;
+      setIsYtReady(true);
+      setDuration(event.target.getDuration());
+    };
 
-      if (window.YT && window.YT.Player) {
-        // Use a small delay to ensure the DOM element is ready
-        const timeoutId = setTimeout(() => {
-          if (document.getElementById('yt-player-element')) {
-            initYt();
-          }
-        }, 100);
-        return () => clearTimeout(timeoutId);
-      } else {
-        window.onYouTubeIframeAPIReady = initYt;
+    const onPlayerStateChange = (event: any) => {
+      if (destroyed) return;
+      const state = event.data;
+      if (state === 1) setIsPlaying(true);
+      else if (state === 2) setIsPlaying(false);
+      else if (state === 0) {
+        handleEndedInternal();
       }
+    };
+
+    const initYt = () => {
+      if (destroyed) return;
+      if (!document.getElementById(ytContainerId)) return;
+      if (ytPlayerRef.current) {
+        try { ytPlayerRef.current.destroy(); } catch (e) { }
+        ytPlayerRef.current = null;
+      }
+      ytPlayerRef.current = new window.YT.Player(ytContainerId, {
+        videoId: track.youtubeId,
+        playerVars: {
+          autoplay: 0,
+          controls: 0,
+          disablekb: 1,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1,
+          fs: 0,
+          cc_load_policy: 0,
+          iv_load_policy: 3,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: onPlayerReady,
+          onStateChange: onPlayerStateChange
+        }
+      });
+    };
+
+    const tryInit = (attempts = 0) => {
+      if (destroyed) return;
+      if (document.getElementById(ytContainerId)) {
+        initYt();
+      } else if (attempts < 20) {
+        requestAnimationFrame(() => tryInit(attempts + 1));
+      }
+    };
+
+    if (window.YT && window.YT.Player) {
+      tryInit();
+    } else {
+      window.onYouTubeIframeAPIReady = () => {
+        if (!destroyed) tryInit();
+      };
     }
+
     return () => {
+      destroyed = true;
       if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
         try {
           ytPlayerRef.current.destroy();
