@@ -67,7 +67,7 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
  * 2. Word repetitions at boundaries (removes them)
  * 3. Dangling prepositions or broken thoughts in English AND translation
  */
-function remedySegments(segments: TranscriptSegment[]): TranscriptSegment[] {
+export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment[] {
   if (segments.length <= 1) return segments;
 
   const result: TranscriptSegment[] = [];

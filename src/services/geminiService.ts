@@ -520,22 +520,118 @@ export async function generateLessonSegments(
   }
 
   const langName = getLanguageName(nativeLanguage);
-  const prompt = `Break the following text into logical segments for a lesson.
-Prioritize natural pauses, punctuation, conjunctions, and clauses to make the segments flow well and make sense.
-Segments should be a good size for learning—not too short and not excessively long.
-For each segment, provide the English text and its corresponding ${langName} translation.
+  const systemPrompt = `You are a world-class linguistic expert. Your goal is to break the following text into study-friendly blocks for a language learning app.
 
-CRITICAL: Mirror the punctuation of the English text EXACTLY in the ${langName} translation for each segment.
+### CRITICAL RULES (TOTAL FIDELITY & SEMANTIC ALIGNMENT):
+1. **100% WORD COVERAGE**: Use EVERY word from the input exactly once.
+2. **NO CROSSING RULE (MANDATORY)**: A translated word MUST stay with its English source in the SAME segment pair. If ${langName} requires an inverted word order (e.g., "simple way" → "forma simples"), DO NOT split them. MOVE the English words to the next segment if necessary, OR keep them together in the current segment.
+3. **NATURAL ${langName.toUpperCase()}**: Prioritize idiomatic, native-sounding ${langName}.
+4. **ADJUST ENGLISH BREAKS**: You have full authority to move English words between segments to ensure the translation is not split.
+5. **SIZE LIMITS**: 4 to 15 words per segment.
+6. **MIRROR PUNCTUATION**: Mirror the punctuation of the English text EXACTLY in the ${langName} translation for each segment.
 
-Text: "${text}"
+### ⚠️ NEVER DO THIS (WORD CROSSING VIOLATION):
+- Seg 1 English: "truth spoken in a simple" → Seg 1 ${langName}: "verdade dita de forma" ❌
+- Seg 2 English: "way can reach every heart." → Seg 2 ${langName}: "simples pode alcançar cada coração." ❌
+- **PROBLEM**: "simples" (translation of "simple") is in Seg 2, but "simple" is in Seg 1. The words crossed segments!
+
+### ✅ ALWAYS DO THIS (Option A — keep phrase together in Seg 1):
+- Seg 1 English: "truth spoken in a simple way" → Seg 1 ${langName}: "verdade dita de forma simples" ✅
+- Seg 2 English: "can reach every heart." → Seg 2 ${langName}: "pode alcançar cada coração." ✅
+
+### ✅ ALWAYS DO THIS (Option B — keep phrase together in Seg 2):
+- Seg 1 English: "truth spoken" → Seg 1 ${langName}: "verdade dita" ✅
+- Seg 2 English: "in a simple way can reach every heart." → Seg 2 ${langName}: "de forma simples pode alcançar cada coração." ✅
+
+### KEY INSIGHT: 
+Every word in the English segment and EVERY word in the ${langName} segment must be a DIRECT 1:1 match. If a ${langName} phrase translates an English phrase, BOTH must be in the SAME segment. Adjust the English boundary to make this work.
+
+### EXAMPLE OF PERFECT ALIGNMENT:
+- Input: "and see how the Bible is divinely inspired literature that leads us to Jesus."
+- RIGHT (Semantic Break):
+  - English: "and see how the Bible"
+  - Translation: "e veja como a Bíblia"
+  - English: "is divinely inspired literature that leads us to Jesus."
+  - Translation: "é literatura divinamente inspirada que nos leva a Jesus."
+
+### EXAMPLE OF CORRECT SEGMENTATION:
+- Input: "The Bible is an intricate work of art that tells one unified story that leads to Jesus. But it isn't like any book you've ever read."
+- WRONG (Fragmented):
+  - "The Bible is an intricate work of art that tells one unified story that leads" (Translation: ...que leva)
+  - "to Jesus." (Translation: a Jesus) -> WRONG: Dangling preposition.
+- RIGHT (Semantic):
+  - "The Bible is an intricate work of art that tells one unified story" (Translation: A Bíblia é uma obra de arte intrincada que conta uma história unificada)
+  - "that leads to Jesus. But it isn't like any book you've ever read." (Translation: que leva a Jesus. Mas não é como nenhum livro que você já leu.)
+
+### EXAMPLE OF REPETITION FIX:
+- Input: "children's book is another. Each genre..."
+- WRONG: "is another." and then "another. Each genre..." -> WRONG: "another" repeated.
+- RIGHT: "children's book is another." and then "Each genre has separate techniques..."
 
 Return exactly a JSON array of objects. Fields: text, translation.`;
 
-  const resultText = await callDeepSeekChat(
-    [{ role: "user", content: prompt }],
-    apiKey,
-    { type: "json_object" }
-  );
+  const userPrompt = `Text: "${text}"
 
-  return JSON.parse(resultText);
+Process this text following all the rules above and return ONLY a JSON array of { text, translation } objects.`;
+
+  try {
+    const resultText = await callDeepSeekChat(
+      [{ role: "user", content: systemPrompt + "\n\n" + userPrompt }],
+      apiKey,
+      { type: "json_object" },
+      8192
+    );
+
+    let parsed = JSON.parse(resultText);
+    let segments = Array.isArray(parsed) ? parsed : (parsed.segments || parsed.data || parsed.transcript || []);
+
+    if (!segments || segments.length === 0) {
+      throw new Error("O DeepSeek não retornou nenhum segmento.");
+    }
+
+    // Post-process: merge small segments and fix broken boundaries (same logic as remedySegments)
+    const result: { text: string, translation: string }[] = [];
+    for (let i = 0; i < segments.length; i++) {
+      const current = segments[i];
+      const wordCount = current.text.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
+      const isLast = i === segments.length - 1;
+      const isSpecialIsolate = /^(goodbye|hello|so let's get started|amen|thank you|welcome)$/i.test(current.text.trim().replace(/[^a-z]/g, ""));
+      let shouldMerge = (wordCount < 4 || (wordCount === 1 && !isLast)) && !isSpecialIsolate;
+
+      if (result.length > 0 && !shouldMerge) {
+        const prev = result[result.length - 1];
+        const prevText = prev.text.trim().toLowerCase();
+        const currText = current.text.trim().toLowerCase();
+
+        const engLastWord = prevText.split(/\s+/).filter((w: string) => w.length > 0).pop() || "";
+        const englishDanglingEnd = new Set(["in","on","at","to","for","with","by","from","of","about","into","through","during","before","after","above","below","between","under","without","against","within","along","across","behind","beyond","around","upon","onto","toward","towards","via","since","until","beside","besides","among","amid","a","an","the","that","which","because","while","although","though","unless","if","when","where","whether","is","are","was","were","has","have","had","does","do","did","will","would","shall","should","can","could","may","might","must","leads"]);
+        const endsWithDanglingEnglish = englishDanglingEnd.has(engLastWord);
+
+        const englishContinuationStart = ["to ","the ","a ","an ","and ","but ","or ","so ","because ","that ","which ","in ","on ","at ","for ","with ","by ","from ","of ","about ","is ","are ","was ","were ","has ","have ","it ","he ","she ","they ","we ","you ","this ","that ","as ","if ","when ","while ","although ","another ","some ","any ","each ","every ","into ","through ","during ","without "];
+        const startsWithContinuationEnglish = englishContinuationStart.some(prefix => currText.startsWith(prefix));
+
+        if (endsWithDanglingEnglish || startsWithContinuationEnglish) {
+          shouldMerge = true;
+        }
+      }
+
+      if (shouldMerge && result.length > 0) {
+        const prev = result[result.length - 1];
+        prev.text = (prev.text.trim() + " " + current.text.trim()).trim();
+        let t1 = (prev.translation || "").trim();
+        let t2 = (current.translation || "").trim();
+        if (t1.endsWith(".") && t2.length > 0 && !/^[A-Z]/.test(t2)) {
+          t1 = t1.slice(0, -1);
+        }
+        prev.translation = (t1 + " " + t2).trim();
+      } else if (current.text.trim().length > 0) {
+        result.push({ text: current.text, translation: current.translation });
+      }
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error("generateLessonSegments failed:", error);
+    throw new Error(`Falha ao gerar segmentos: ${error.message}`);
+  }
 }
