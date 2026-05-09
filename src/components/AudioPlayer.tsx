@@ -495,6 +495,9 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       const activeIdx = track.transcript.findIndex(s => currentTime >= s.start && currentTime <= s.end);
       if (activeIdx !== -1 && activeIdx !== lastScrolledIndex.current) {
         lastScrolledIndex.current = activeIdx;
+        if (isMaximized) {
+          setFocusSegmentIndex(activeIdx);
+        }
         const element = document.getElementById(`segment-${activeIdx}`);
         if (element) {
           element.scrollIntoView({
@@ -1103,10 +1106,10 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 <motion.div
                   key={focusSegmentIndex}
                   id={`segment-${focusSegmentIndex}`}
-                  initial={{ y: 40, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: -40, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
                   className="group transition-all duration-300 rounded-xl p-3 sm:p-4"
                 >
                   {(() => {
@@ -1357,28 +1360,18 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
               <div className="flex items-center space-x-6 sm:space-x-8">
                 {isMaximized ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setFocusSegmentIndex(prev => Math.max(0, prev - 1))}
-                      disabled={focusSegmentIndex === 0}
-                      className="w-12 h-12 sm:w-10 sm:h-10 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
-                      title="Segmento anterior"
-                    >
-                      <ChevronLeft className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setFocusSegmentIndex(prev => Math.min(track.transcript.length - 1, prev + 1))}
-                      disabled={focusSegmentIndex === track.transcript.length - 1}
-                      className="w-12 h-12 sm:w-10 sm:h-10 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
-                      title="Próximo segmento"
-                    >
-                      <ChevronRight className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
-                    </Button>
-                  </>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFocusSegmentIndex(prev => Math.max(0, prev - 1))}
+                    disabled={focusSegmentIndex === 0}
+                    className="w-14 h-14 sm:w-12 sm:h-12 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+                    title="Segmento anterior"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 fill-current" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M18 4L6 12L18 20V4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                    </svg>
+                  </Button>
                 ) : (
                   <Button
                     variant="ghost"
@@ -1411,6 +1404,20 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     <Play className="w-8 h-8 sm:w-6 sm:h-6 fill-current ml-1" />
                   )}
                 </Button>
+                {isMaximized ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFocusSegmentIndex(prev => Math.min(track.transcript.length - 1, prev + 1))}
+                    disabled={focusSegmentIndex === track.transcript.length - 1}
+                    className="w-14 h-14 sm:w-12 sm:h-12 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+                    title="Próximo segmento"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 fill-current" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6 4L18 12L6 20V4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                    </svg>
+                  </Button>
+                ) : null}
                 {!isMaximized && (
                   <Button
                     variant="ghost"
