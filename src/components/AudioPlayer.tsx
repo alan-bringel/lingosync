@@ -1102,16 +1102,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         <ScrollArea className="flex-1 min-h-0 px-4 sm:px-8 py-4">
           <div className="space-y-2 pb-8">
             {isMaximized ? (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={focusSegmentIndex}
-                  id={`segment-${focusSegmentIndex}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2, ease: "easeInOut" }}
-                  className="group transition-all duration-300 rounded-xl p-3 sm:p-4"
-                >
+              <div
+                key={focusSegmentIndex}
+                id={`segment-${focusSegmentIndex}`}
+                className="group rounded-xl p-3 sm:p-4 transition-opacity duration-200"
+              >
                   {(() => {
                     const segment = track.transcript[focusSegmentIndex];
                     const sIdx = focusSegmentIndex;
@@ -1158,8 +1153,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                       </div>
                     );
                   })()}
-                </motion.div>
-              </AnimatePresence>
+                </div>
             ) : (
               track.transcript.map((segment, sIdx) => (
               <motion.div
@@ -1365,11 +1359,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     size="icon"
                     onClick={() => setFocusSegmentIndex(prev => Math.max(0, prev - 1))}
                     disabled={focusSegmentIndex === 0}
-                    className="w-14 h-14 sm:w-12 sm:h-12 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+                    className="w-16 h-16 sm:w-14 sm:h-14 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
                     title="Segmento anterior"
                   >
-                    <svg viewBox="0 0 24 24" className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 fill-current" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M18 4L6 12L18 20V4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                    <svg viewBox="0 0 24 24" className="w-12 h-12 sm:w-11 sm:h-11 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M16 5 L6 12 L16 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                     </svg>
                   </Button>
                 ) : (
@@ -1410,11 +1404,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     size="icon"
                     onClick={() => setFocusSegmentIndex(prev => Math.min(track.transcript.length - 1, prev + 1))}
                     disabled={focusSegmentIndex === track.transcript.length - 1}
-                    className="w-14 h-14 sm:w-12 sm:h-12 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+                    className="w-16 h-16 sm:w-14 sm:h-14 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
                     title="Próximo segmento"
                   >
-                    <svg viewBox="0 0 24 24" className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 fill-current" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M6 4L18 12L6 20V4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                    <svg viewBox="0 0 24 24" className="w-12 h-12 sm:w-11 sm:h-11 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M8 5 L18 12 L8 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                     </svg>
                   </Button>
                 ) : null}
