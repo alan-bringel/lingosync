@@ -8,7 +8,7 @@ const ScrollArea = ({ children, className }: any) => <div className={className} 
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
 import { GerarLicaoModal } from "./components/GerarLicaoModal";
-import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle, LogOut, CloudDownload } from "lucide-react";
+import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle, LogOut, CloudDownload, Eye, EyeOff } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
 import { motion, AnimatePresence, useMotionValue } from "motion/react";
@@ -373,6 +373,7 @@ export default function App() {
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  const [isMaximized, setIsMaximized] = useState(false);
   const dirtyTracksRef = useRef<Set<string>>(new Set());
   const syncingTrackIdRef = useRef<string | null>(null);
   const deletedDriveIdsRef = useRef<Set<string>>(new Set(JSON.parse(localStorage.getItem('lingosync_deleted_drive_ids') || '[]')));
@@ -2271,37 +2272,51 @@ export default function App() {
                     exit={{ opacity: 0, scale: 0.98 }}
                     className="flex flex-col h-full max-w-5xl mx-auto w-full overflow-hidden relative"
                   >
-                    <div className="pb-4 flex items-center justify-between">
-                      <Button
-                        variant="ghost"
-                        onClick={() => setCurrentView('library')}
-                        className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10 whitespace-nowrap"
-                      >
-                        <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
-                        <span>Biblioteca</span>
-                      </Button>
+                    <button
+                      onClick={() => setIsMaximized(prev => !prev)}
+                      className="absolute top-2 right-2 z-20 p-1.5 rounded-lg transition-colors duration-200 text-gray-500 hover:text-white hover:bg-white/5"
+                      title={isMaximized ? "Mostrar controles" : "Maximizar visualização"}
+                    >
+                      {isMaximized ? (
+                        <EyeOff className="w-[18px] h-[18px] text-white" />
+                      ) : (
+                        <Eye className="w-[18px] h-[18px]" />
+                      )}
+                    </button>
 
-                      <Button
-                        variant="ghost"
-                        onClick={handleOpenFlashcards}
-                        disabled={isGeneratingCards}
-                        className="text-sm uppercase tracking-widest h-10 font-bold text-[#827367] hover:text-[#9a8c80] flex flex-row items-center px-3 w-fit"
-                      >
-                        {isGeneratingCards ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin shrink-0" />
-                            {Math.round(flashcardPercent)}%
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-5 h-5 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="5" y="2" width="14" height="20" rx="4" />
-                            </svg>
-                            Flashcards
-                          </>
-                        )}
-                      </Button>
-                    </div>
+                    {!isMaximized && (
+                      <div className="pb-4 flex items-center justify-between">
+                        <Button
+                          variant="ghost"
+                          onClick={() => setCurrentView('library')}
+                          className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10 whitespace-nowrap"
+                        >
+                          <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
+                          <span>Biblioteca</span>
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          onClick={handleOpenFlashcards}
+                          disabled={isGeneratingCards}
+                          className="text-sm uppercase tracking-widest h-10 font-bold text-[#827367] hover:text-[#9a8c80] flex flex-row items-center px-3 w-fit"
+                        >
+                          {isGeneratingCards ? (
+                            <>
+                              <Loader2 className="w-5 h-5 mr-2 animate-spin shrink-0" />
+                              {Math.round(flashcardPercent)}%
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-5 h-5 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="5" y="2" width="14" height="20" rx="4" />
+                              </svg>
+                              Flashcards
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                     <div className="flex-1 min-h-0 h-full w-full overflow-hidden">
                       <AudioPlayer
                         track={currentTrack}
@@ -2324,6 +2339,7 @@ export default function App() {
                         nativeLanguage={nativeLanguage}
                         externalJumpToSegmentIndex={externalJumpToSegmentIndex}
                         onJumpedToSegment={() => setExternalJumpToSegmentIndex(null)}
+                        isMaximized={isMaximized}
                       />
                     </div>
 

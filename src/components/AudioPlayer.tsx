@@ -38,6 +38,7 @@ interface AudioPlayerProps {
   nativeLanguage: string;
   externalJumpToSegmentIndex?: number | null;
   onJumpedToSegment?: () => void;
+  isMaximized?: boolean;
 }
 
 function DropdownSelector({
@@ -117,7 +118,7 @@ function DropdownSelector({
   )
 }
 
-export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUpdateTrack, onVideoSyncClick, onMissingAudioSyncClick, userApiKey, deepseekApiKey, onMissingKey, onQuotaExceeded, globalKnownWords = [], onToggleKnownWord, hasBillingEnabled = false, isPausedExternally = false, onOpenFlashcardAtIndex, nativeLanguage, externalJumpToSegmentIndex, onJumpedToSegment }: AudioPlayerProps) {
+export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUpdateTrack, onVideoSyncClick, onMissingAudioSyncClick, userApiKey, deepseekApiKey, onMissingKey, onQuotaExceeded, globalKnownWords = [], onToggleKnownWord, hasBillingEnabled = false, isPausedExternally = false, onOpenFlashcardAtIndex, nativeLanguage, externalJumpToSegmentIndex, onJumpedToSegment, isMaximized = false }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -976,68 +977,70 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
   return (
     <div className="flex flex-col h-full bg-transparent sm:bg-[#0d0d0d] rounded-3xl border-[1.5px] border-white/10 overflow-hidden shadow-2xl">
-      {/* Track Info */}
-      <div className="p-4 sm:p-4 flex flex-col bg-white/[0.04] border-b border-white/5">
-        <div className="flex items-center space-x-4 w-full">
-          <motion.div
-            key={track.id}
-            className={cn(
-              "w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shrink-0 aspect-square ml-1 overflow-hidden transition-all duration-300 rounded-full",
-              isEditModeGlobal
-                ? "bg-white/[0.03] border border-white/10 focus-within:border-white/20"
-                : "bg-[#443a32]/20 border border-white/5"
-            )}
-          >
-            {isEditModeGlobal ? (
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={track.lessonNumber === undefined ? "" : track.lessonNumber}
-                placeholder={trackNumber.toString()}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "") {
-                    onUpdateTrack?.({ lessonNumber: undefined });
-                  } else {
-                    const parsed = parseInt(val, 10);
-                    if (!isNaN(parsed)) {
-                      onUpdateTrack?.({ lessonNumber: parsed });
+      {!isMaximized && (
+        /* Track Info */
+        <div className="p-4 sm:p-4 flex flex-col bg-white/[0.04] border-b border-white/5">
+          <div className="flex items-center space-x-4 w-full">
+            <motion.div
+              key={track.id}
+              className={cn(
+                "w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center shrink-0 aspect-square ml-1 overflow-hidden transition-all duration-300 rounded-full",
+                isEditModeGlobal
+                  ? "bg-white/[0.03] border border-white/10 focus-within:border-white/20"
+                  : "bg-[#443a32]/20 border border-white/5"
+              )}
+            >
+              {isEditModeGlobal ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={track.lessonNumber === undefined ? "" : track.lessonNumber}
+                  placeholder={trackNumber.toString()}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      onUpdateTrack?.({ lessonNumber: undefined });
+                    } else {
+                      const parsed = parseInt(val, 10);
+                      if (!isNaN(parsed)) {
+                        onUpdateTrack?.({ lessonNumber: parsed });
+                      }
                     }
-                  }
-                }}
-                className="bg-transparent border-none text-center outline-none w-full h-full text-base font-bold text-[#827367] font-mono cursor-text placeholder:text-[#827367]/30"
-              />
-            ) : (
-              <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? trackNumber}</span>
-            )}
-          </motion.div>
-          <div className="flex-1 min-w-0">
-            {isEditModeGlobal ? (
-              <input
-                type="text"
-                value={track.title}
-                onChange={(e) => onUpdateTrack?.({ title: e.target.value })}
-                className="bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1 text-xl font-semibold text-gray-200 tracking-tight w-full outline-none focus:border-white/20 transition-all"
-              />
-            ) : (
-              <h2 className="text-xl font-semibold text-gray-300 tracking-tight break-words whitespace-normal leading-tight">{track.title}</h2>
-            )}
+                  }}
+                  className="bg-transparent border-none text-center outline-none w-full h-full text-base font-bold text-[#827367] font-mono cursor-text placeholder:text-[#827367]/30"
+                />
+              ) : (
+                <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? trackNumber}</span>
+              )}
+            </motion.div>
+            <div className="flex-1 min-w-0">
+              {isEditModeGlobal ? (
+                <input
+                  type="text"
+                  value={track.title}
+                  onChange={(e) => onUpdateTrack?.({ title: e.target.value })}
+                  className="bg-white/[0.03] border border-white/10 rounded-lg px-3 py-1 text-xl font-semibold text-gray-200 tracking-tight w-full outline-none focus:border-white/20 transition-all"
+                />
+              ) : (
+                <h2 className="text-xl font-semibold text-gray-300 tracking-tight break-words whitespace-normal leading-tight">{track.title}</h2>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsDictionaryModeGlobal(!isDictionaryModeGlobal)}
+              className={cn(
+                "transition-all active:scale-90 w-10 h-10 shrink-0",
+                isDictionaryModeGlobal ? "text-[#827367]" : "text-gray-500 hover:text-gray-200"
+              )}
+              title={isDictionaryModeGlobal ? "Desativar Modo Dicionário" : "Ativar Modo Dicionário"}
+            >
+              <Book className="w-5 h-5 shrink-0" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsDictionaryModeGlobal(!isDictionaryModeGlobal)}
-            className={cn(
-              "transition-all active:scale-90 w-10 h-10 shrink-0",
-              isDictionaryModeGlobal ? "text-[#827367]" : "text-gray-500 hover:text-gray-200"
-            )}
-            title={isDictionaryModeGlobal ? "Desativar Modo Dicionário" : "Ativar Modo Dicionário"}
-          >
-            <Book className="w-5 h-5 shrink-0" />
-          </Button>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-col relative min-h-0 flex-1">
         {hasVideo && (
