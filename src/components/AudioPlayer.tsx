@@ -387,7 +387,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     // Dictionary Mode Logic
     if (isDictionaryModeGlobal) {
       if (word && track.flashcards && onOpenFlashcardAtIndex) {
-        // Pause playback
+        if (e.detail === 2) {
+          // Double-click on word: narrate segment
+          const seg = track.transcript[idx];
+          playSegment(seg.start, seg.end, idx);
+          return;
+        }
+        // Single click on word: open flashcard
         setIsPlaying(false);
         if (track.youtubeId && ytPlayerRef.current && isYtReady) {
           ytPlayerRef.current.pauseVideo?.();
@@ -406,11 +412,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         }
 
         onOpenFlashcardAtIndex(cardIdx !== -1 ? cardIdx : 0, idx);
+      } else if (e.detail === 2 && !word) {
+        // Double-click on empty space: narrate segment
+        const seg = track.transcript[idx];
+        playSegment(seg.start, seg.end, idx);
       }
-      return; // Do nothing if it's a general segment click in dictionary mode
+      return;
     }
 
-    // Normal Mode Logic (Single Click only, double click removed as requested)
+    // Normal mode: single click plays segment
     const segment = track.transcript[idx];
     playSegment(segment.start, segment.end, idx);
   };
@@ -422,7 +432,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
     // Active uses a slightly muted brown, Inactive uses a more discreet faded brown
     const knownColorClass = isActive ? "text-[#827367]" : "text-[#827367]/50";
-    const baseColorClass = isActive ? "text-gray-400" : "text-gray-500";
+    const baseColorClass = isActive ? "text-gray-300" : "text-gray-500";
 
     return parts.map((part, i) => {
       const isWord = pattern.test(part);
@@ -1112,7 +1122,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
         {/* Transcript Area */}
         {isMaximized ? (
-          <div className="flex-1 min-h-0 px-4 sm:px-8 py-4 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 px-4 sm:px-8 pt-4 pb-0 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="w-full max-w-4xl mx-auto px-6 sm:px-10 py-4">
                 <div className="min-w-0" key={focusSegmentIndex}>
@@ -1123,11 +1133,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                       <div className="space-y-2">
                         <div className="flex justify-between items-start group/title pb-1">
                           <div
-                            onDoubleClick={() => {
-                              if (isDictionaryModeGlobal) {
-                                playSegment(segment.start, segment.end, sIdx);
-                              }
-                            }}
+                            onClick={(e) => handleSegmentClick(e, sIdx)}
                             className="text-[1.3rem] sm:text-xl leading-relaxed flex-1"
                           >
                             {renderSegmentText(segment.text, true, sIdx)}
@@ -1162,7 +1168,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                                 }
                               }}
                               className={cn(
-                                "text-lg sm:text-base text-gray-600 italic font-serif leading-relaxed",
+                                "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed",
                                 isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
                               )}
                             >
@@ -1176,7 +1182,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between px-6 sm:px-10 pb-4 shrink-0">
+            <div className="flex items-center justify-between px-6 sm:px-10 pb-0 shrink-0">
               <button
                 onClick={() => setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length)}
                 className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
@@ -1313,12 +1319,6 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 key={sIdx}
                 id={`segment-${sIdx}`}
                 onClick={(e) => editingIndex === null && handleSegmentClick(e, sIdx)}
-                onDoubleClick={() => {
-                  if (editingIndex === null && isDictionaryModeGlobal) {
-                    const seg = track.transcript[sIdx];
-                    playSegment(seg.start, seg.end, sIdx);
-                  }
-                }}
                 className={cn(
                   "group transition-all duration-300 rounded-xl p-3 sm:p-4",
                   editingIndex === sIdx ? "bg-white/[0.05] border-[1.5px] border-white/20" : "cursor-pointer"
@@ -1456,7 +1456,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                                 }
                               }}
                               className={cn(
-                                "text-lg sm:text-base text-gray-600 italic font-serif leading-relaxed overflow-hidden",
+                                "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
                                 isDictionaryModeGlobal && "cursor-pointer hover:text-gray-200 transition-colors"
                               )}
                             >
@@ -1525,12 +1525,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     }
                   }}
                   className={cn(
-                    "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
+                    "transition-all active:scale-90 w-14 h-14 sm:w-12 sm:h-12",
                     hasVideo && showVideo ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
                   )}
                   title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
                 >
-                  <Youtube className="w-12 h-12 sm:w-10 sm:h-10 shrink-0" />
+                  <Youtube className="w-14 h-14 sm:w-12 sm:h-12 shrink-0" />
                 </Button>
                 <Button
                   onClick={togglePlay}
