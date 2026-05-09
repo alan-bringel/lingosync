@@ -436,8 +436,20 @@ export default function App() {
     if (!isGoogleLoggedIn) return false;
     syncDirectionRef.current = 'upload';
     setIsSyncing(track.id);
-    // Declarado fora do try para ser acessivel no catch em caso de erro
+    setDownloadProgress(prev => ({ ...prev, [track.id]: 0 }));
     let mergedTrack = { ...track };
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+    const startProgress = () => {
+      let pct = 0;
+      progressInterval = setInterval(() => {
+        if (pct < 95) {
+          const increment = pct < 30 ? 5 : pct < 60 ? 3 : pct < 80 ? 1.5 : 0.5;
+          pct = Math.min(95, Math.round(pct + increment * (0.5 + Math.random() * 0.5)));
+          setDownloadProgress(prev => ({ ...prev, [track.id]: pct }));
+        }
+      }, 300);
+    };
+    startProgress();
     try {
       let driveAudioFileId = track.driveAudioFileId;
       const storedTracks = await get<any[]>('lingosync_tracks') || [];
@@ -552,6 +564,12 @@ export default function App() {
       }
       return false;
     } finally {
+      if (progressInterval) clearInterval(progressInterval);
+      setDownloadProgress(prev => {
+        const next = { ...prev };
+        delete next[track.id];
+        return next;
+      });
       setIsSyncing(null);
     }
   };
@@ -563,7 +581,7 @@ export default function App() {
     setDownloadProgress(prev => ({ ...prev, [track.id]: 0 }));
     try {
       const jsonBlob = await googleDriveService.downloadFile(track.driveFileId, (pct) => {
-        setDownloadProgress(prev => ({ ...prev, [track.id]: pct }));
+        setDownloadProgress(prev => ({ ...prev, [track.id]: Math.min(99, pct) }));
       });
       const jsonData = JSON.parse(await jsonBlob.text());
       
@@ -571,7 +589,7 @@ export default function App() {
       if (track.driveAudioFileId) {
         try {
           audioBlob = await googleDriveService.downloadFile(track.driveAudioFileId, (pct) => {
-            setDownloadProgress(prev => ({ ...prev, [track.id]: 50 + Math.round(pct / 2) }));
+            setDownloadProgress(prev => ({ ...prev, [track.id]: Math.min(99, 50 + Math.round(pct / 2)) }));
           });
         } catch (audioErr) {
           console.warn("Audio download failed, continuing without audio:", audioErr);
@@ -2172,14 +2190,14 @@ export default function App() {
                   <span className="text-xs text-[#827367] font-medium">
                     {syncDirectionRef.current === 'upload'
                       ? 'Enviando para a nuvem'
-                      : `Baixando da nuvem... ${downloadProgress[track.id] || 0}%`}
+                      : 'Baixando da nuvem'}
+                    <span className="animate-dots inline-block ml-0.5">...</span>
+                    {' '}{downloadProgress[track.id] || 0}%
                   </span>
                 </div>
-                {syncDirectionRef.current !== 'upload' && (
-                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
-                  </div>
-                )}
+                <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
+                </div>
               </div>
             )}
             {track.syncStatus === 'missing_local' && isSyncing !== track.id && (
