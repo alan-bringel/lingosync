@@ -1497,7 +1497,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                   )}
                   title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
                 >
-                  <Youtube className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
+                  <Youtube className="w-10 h-10 sm:w-8 sm:h-8 shrink-0" />
                 </Button>
                 <Button
                   onClick={togglePlay}
