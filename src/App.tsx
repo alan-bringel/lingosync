@@ -2136,12 +2136,9 @@ export default function App() {
     };
 
     return (
-      <motion.div
+      <div
         className="relative mb-2 rounded-xl group overflow-hidden bg-[#0d0d0d]"
         ref={containerRef}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.05, duration: 0.3 }}
       >
         {/* Action Buttons Background - Positioned behind the sliding content */}
         <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-3 w-[130px] justify-end">
@@ -2280,7 +2277,7 @@ export default function App() {
             <div className="w-[14px] h-[1.5px] bg-gray-500 group-hover/icon:bg-gray-300 rounded-full transition-colors" />
           </div>
         </motion.div>
-      </motion.div>
+      </div>
     );
   };
 
