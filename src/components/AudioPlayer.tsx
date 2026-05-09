@@ -1122,7 +1122,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
         {/* Transcript Area */}
         {isMaximized ? (
-          <div className="flex-1 min-h-0 px-4 sm:px-8 pt-4 pb-0 flex flex-col overflow-hidden">
+          <div
+            onClick={() => {
+              const segment = track.transcript[focusSegmentIndex];
+              playSegment(segment.start, segment.end, focusSegmentIndex);
+            }}
+            className="flex-1 min-h-0 px-4 sm:px-8 pt-4 pb-0 flex flex-col overflow-hidden"
+          >
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="w-full max-w-4xl mx-auto px-6 sm:px-10 py-4">
                 <div className="min-w-0" key={focusSegmentIndex}>
@@ -1162,7 +1168,8 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                           </div>
                           {showTranslations[sIdx] && (
                             <p
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 if (isMaximized) {
                                   playSegment(segment.start, segment.end, sIdx);
                                 }
@@ -1476,7 +1483,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       </div>
 
       {/* Controls Container */}
-      <div className="bg-white/[0.04] relative">
+      <div className={cn(isMaximized ? "bg-[#0d0d0d]" : "bg-white/[0.04]", "relative")}>
         <div className="px-4 sm:px-8 py-3 sm:py-4 flex flex-col justify-center min-h-[96px] sm:min-h-[112px]">
           {/* Progress bar positioned between the divider and the controls */}
           <div className="mb-3">
