@@ -8,7 +8,7 @@ const ScrollArea = ({ children, className }: any) => <div className={className} 
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
 import { GerarLicaoModal } from "./components/GerarLicaoModal";
-import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle, LogOut } from "lucide-react";
+import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle, LogOut, CloudDownload } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
 import { motion, AnimatePresence, useMotionValue } from "motion/react";
@@ -2780,13 +2780,81 @@ export default function App() {
                   </div>
                   <div className="space-y-4">
                     <h3 className="text-xl font-bold text-gray-200">Áudio não encontrado</h3>
-                    <div className="text-left space-y-3">
-                      <p className="text-base text-gray-400 leading-relaxed">
-                        Não conseguimos localizar o áudio original desta lição. Isso pode acontecer se o arquivo foi <b>renomeado</b>, <b>movido</b> ou <b>excluído</b> do seu dispositivo.
-                      </p>
-                      <div className="p-4 rounded-2xl bg-[#827367]/5 border border-[#827367]/10 space-y-3">
-                        <p className="text-base text-[#a39487] font-medium">
-                          Para ouvir o áudio, selecione a pasta onde o arquivo <b>{currentTrack?.audioFileName || "original"}</b> está localizado.
+                    <p className="text-base text-gray-400 leading-relaxed">
+                      O arquivo de áudio desta lição não está disponível localmente neste dispositivo.
+                    </p>
+
+                    {currentTrack?.driveAudioFileId && isGoogleLoggedIn ? (
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-2xl bg-[#827367]/5 border border-[#827367]/10">
+                          <p className="text-base text-[#a39487] font-medium mb-4">
+                            O áudio está salvo no Google Drive. Clique abaixo para baixá-lo.
+                          </p>
+                          <Button
+                            onClick={() => {
+                              if (currentTrack) downloadTrackFromDrive(currentTrack);
+                            }}
+                            disabled={isSyncing === currentTrack?.id}
+                            className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-100 font-bold uppercase tracking-widest text-base h-10 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-lg shadow-[#827367]/10"
+                          >
+                            {isSyncing === currentTrack?.id ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Baixando... {downloadProgress[currentTrack?.id || ''] || 0}%</span>
+                              </>
+                            ) : (
+                              <>
+                                <CloudDownload className="w-3.5 h-3.5" />
+                                <span>Baixar da Nuvem</span>
+                              </>
+                            )}
+                          </Button>
+                          {isSyncing === currentTrack?.id && (
+                            <div className="mt-3">
+                              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                                <div className="h-full bg-[#827367] transition-all duration-200" style={{ width: `${downloadProgress[currentTrack?.id || ''] || 0}%` }} />
+                              </div>
+                              <p className="text-base text-gray-400 uppercase tracking-[0.2em] mt-2">
+                                {downloadProgress[currentTrack?.id || ''] || 0}% concluído
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-white/10" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase tracking-widest">
+                            <span className="bg-[#161616] px-3 text-gray-500">ou</span>
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-gray-500 mb-2">
+                            Se preferir, selecione manualmente a pasta com o arquivo de áudio.
+                          </p>
+                          <Button
+                            onClick={() => {
+                              const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                              const canUseDirectoryPicker = !isSafari && 'showDirectoryPicker' in window;
+                              if (canUseDirectoryPicker) {
+                                handleSyncAudioFolder();
+                              } else {
+                                folderInputRef.current?.click();
+                              }
+                            }}
+                            disabled={isSyncingAudio}
+                            variant="ghost"
+                            className="text-gray-400 hover:text-gray-200 text-xs font-bold uppercase tracking-widest"
+                          >
+                            <RotateCw className="w-3 h-3 mr-1.5" />
+                            Selecionar Pasta
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-base text-gray-400 leading-relaxed">
+                          O áudio original não foi salvo na nuvem. Selecione a pasta onde o arquivo <b>{currentTrack?.audioFileName || "original"}</b> está localizado.
                         </p>
                         <Button
                           onClick={() => {
@@ -2824,7 +2892,7 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                    </div>
+                    )}
                   </div>
                   <button
                     onClick={() => {
