@@ -506,7 +506,7 @@ export function FlashcardsView({
                   <div className="flex bg-white/5 rounded-full p-1.5 border border-white/10 space-x-1">
                     {[
                       { id: 'en-US-Neural2-F', label: 'F1' },
-                      { id: 'en-US-Neural2-C', label: 'F2' },
+                      { id: 'en-US-Neural2-E', label: 'F2' },
                       { id: 'en-US-Neural2-D', label: 'M1' },
                       { id: 'en-US-Neural2-A', label: 'M2' },
                     ].map((voice) => (
