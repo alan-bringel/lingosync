@@ -8,6 +8,7 @@ const ScrollArea = ({ children, className }: any) => <div className={className} 
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
 import { GerarLicaoModal } from "./components/GerarLicaoModal";
+import { VideoSourcePrompt } from "./components/VideoSourcePrompt";
 import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle, LogOut, CloudDownload, Eye, EyeOff } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
@@ -820,6 +821,9 @@ export default function App() {
   const [audioErrorMessage, setAudioErrorMessage] = useState("");
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [showGerarLicaoModal, setShowGerarLicaoModal] = useState(false);
+  const [showVideoSourcePrompt, setShowVideoSourcePrompt] = useState(false);
+  const [pendingVideoSourceFile, setPendingVideoSourceFile] = useState<{ file: File; isVideo: boolean } | null>(null);
+  const pendingFileResolveRef = useRef<((value: { youtubeUrl?: string } | null) => void) | null>(null);
   const [isSyncingVideo, setIsSyncingVideo] = useState(false);
   const [showMissingAudioModal, setShowMissingAudioModal] = useState(false);
   const [isSyncingAudio, setIsSyncingAudio] = useState(false);
@@ -1730,6 +1734,22 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  const handleVideoSourceContinue = (youtubeUrl?: string) => {
+    setShowVideoSourcePrompt(false);
+    if (pendingFileResolveRef.current) {
+      pendingFileResolveRef.current({ youtubeUrl });
+      pendingFileResolveRef.current = null;
+    }
+  };
+
+  const handleVideoSourceClose = () => {
+    setShowVideoSourcePrompt(false);
+    if (pendingFileResolveRef.current) {
+      pendingFileResolveRef.current(null);
+      pendingFileResolveRef.current = null;
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1746,14 +1766,31 @@ export default function App() {
       return;
     }
 
+    const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'mkv'].includes(file.name.split('.').pop()?.toLowerCase() || '');
+
+    const youtubeUrl = await new Promise<string | undefined>((resolve) => {
+      setPendingVideoSourceFile({ file, isVideo });
+      pendingFileResolveRef.current = (value) => {
+        resolve(value?.youtubeUrl);
+      };
+      setShowVideoSourcePrompt(true);
+    });
+
+    let youtubeId: string | undefined;
+    if (youtubeUrl) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = youtubeUrl.match(regExp);
+      if (match && match[2].length === 11) {
+        youtubeId = match[2];
+      }
+    }
+
     setIsTranscribing(true);
     try {
       let transcript;
       transcript = enforceSegmentWordLimit(
         await transcribeAudio(file, nativeLanguage, effectiveAssemblyKey, effectiveDeepseekKey, hasBillingEnabled)
       );
-
-      const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'mkv'].includes(file.name.split('.').pop()?.toLowerCase() || '');
 
       const newTrack: AudioTrack = {
         id: Date.now().toString(36) + Math.random().toString(36).substring(2),
@@ -1762,20 +1799,20 @@ export default function App() {
         url: URL.createObjectURL(file),
         coverUrl: `https://picsum.photos/seed/${file.name}/400/400`,
         transcript: transcript,
-        isVideo: isVideo,
+        isVideo: isVideo || !!youtubeId,
         audioFileName: file.name,
-        language: currentLanguage
+        language: currentLanguage,
+        youtubeId: youtubeId
       };
 
-      if (isVideo) {
+      if (isVideo && !youtubeId) {
         newTrack.localVideoUrl = newTrack.url;
         newTrack.videoFileName = file.name;
       }
 
-      // Save to persistence
       await saveTrack(newTrack, file);
 
-      if (isVideo) {
+      if (isVideo && !youtubeId) {
         await saveTrackVideo(newTrack.id, file);
       }
 
@@ -1785,7 +1822,6 @@ export default function App() {
         return newList;
       });
       
-      // Auto-sync to Google Drive if logged in
       if (isGoogleLoggedIn) {
         syncTrackToDrive(newTrack);
         setTimeout(() => evictCacheIfNeeded(), 500);
@@ -3174,6 +3210,14 @@ export default function App() {
           </div>
         )}
       </div>
+
+      <VideoSourcePrompt
+        isOpen={showVideoSourcePrompt}
+        onClose={handleVideoSourceClose}
+        onContinue={handleVideoSourceContinue}
+        fileName={pendingVideoSourceFile?.file?.name || ''}
+        isVideo={pendingVideoSourceFile?.isVideo || false}
+      />
     </>
   );
 }
