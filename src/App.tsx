@@ -1881,55 +1881,58 @@ export default function App() {
         {/* Action Buttons Background - Positioned behind the sliding content */}
         <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-3 w-[130px] justify-end">
           {/* Cloud Sync Button */}
-          {isGoogleLoggedIn && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                if (track.syncStatus === 'missing_local' || track.syncStatus === 'cloud_only') {
-                  downloadTrackFromDrive(track);
-                } else {
-                  syncTrackToDrive(track);
-                }
-              }}
-              disabled={isSyncing === track.id}
-              className={cn(
-                "h-12 w-12 rounded-full transition-all flex items-center justify-center",
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (!isGoogleLoggedIn) return;
+              if (track.syncStatus === 'missing_local' || track.syncStatus === 'cloud_only') {
+                downloadTrackFromDrive(track);
+              } else {
+                syncTrackToDrive(track);
+              }
+            }}
+            disabled={isSyncing === track.id}
+            className={cn(
+              "h-12 w-12 rounded-full transition-all flex items-center justify-center",
+              isGoogleLoggedIn ? (
                 track.syncStatus === 'synced' ? "text-[#827367] hover:bg-[#0d0d0d]" : 
                 track.syncStatus === 'missing_local' ? "text-[#827367] hover:bg-[#827367]/10" :
                 track.syncStatus === 'cloud_only' ? "text-yellow-400 hover:bg-yellow-500/10" :
                 track.syncStatus === 'error' ? "text-red-400 hover:bg-red-500/10" :
                 "text-[#827367] hover:text-[#9a8c80] hover:bg-white/5"
-              )}
-            >
-              {isSyncing === track.id ? (
-                <div className="relative w-5 h-5">
-                  <svg className="w-5 h-5 -rotate-90" viewBox="0 0 20 20">
-                    <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.2" />
-                    <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray={`${2 * Math.PI * 8}`} strokeDashoffset={`${2 * Math.PI * 8 * (1 - (downloadProgress[track.id] || 0) / 100)}`} strokeLinecap="round" />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold">{downloadProgress[track.id] || 0}</span>
-                </div>
-              ) : track.syncStatus === 'synced' ? (
-                <svg className="w-6 h-6" viewBox="-2 -2 28 28" fill="none">
-                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" stroke="#827367" strokeWidth="1.5" fill="none"/>
-                  <path d="M10 12.5l1.5 1.5 3-3" stroke="#827367" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              ) : "text-gray-600 cursor-default"
+            )}
+          >
+            {isSyncing === track.id ? (
+              <div className="relative w-5 h-5">
+                <svg className="w-5 h-5 -rotate-90" viewBox="0 0 20 20">
+                  <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.2" />
+                  <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray={`${2 * Math.PI * 8}`} strokeDashoffset={`${2 * Math.PI * 8 * (1 - (downloadProgress[track.id] || 0) / 100)}`} strokeLinecap="round" />
                 </svg>
-              ) : track.syncStatus === 'missing_local' ? (
-                <svg className="w-6 h-6" viewBox="-2 -2 28 28" fill="none">
-                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" stroke="#827367" strokeWidth="1.5" fill="none"/>
-                  <path d="M12 9v6m0 0l-2.5-2.5M12 15l2.5-2.5" stroke="#827367" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              ) : track.syncStatus === 'cloud_only' ? (
-                <CloudOff className="w-5 h-5" />
-              ) : track.syncStatus === 'error' ? (
-                <AlertCircle className="w-5 h-5" />
-              ) : (
-                <CloudUpload className="w-5 h-5" />
-              )}
-            </Button>
-          )}
+                <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold">{downloadProgress[track.id] || 0}</span>
+              </div>
+            ) : !isGoogleLoggedIn ? (
+              <CloudOff className="w-5 h-5" />
+            ) : track.syncStatus === 'synced' ? (
+              <svg className="w-6 h-6" viewBox="-2 -2 28 28" fill="none">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" stroke="#827367" strokeWidth="1.5" fill="none"/>
+                <path d="M10 12.5l1.5 1.5 3-3" stroke="#827367" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : track.syncStatus === 'missing_local' ? (
+              <svg className="w-6 h-6" viewBox="-2 -2 28 28" fill="none">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" stroke="#827367" strokeWidth="1.5" fill="none"/>
+                <path d="M12 9v6m0 0l-2.5-2.5M12 15l2.5-2.5" stroke="#827367" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : track.syncStatus === 'cloud_only' ? (
+              <CloudOff className="w-5 h-5" />
+            ) : track.syncStatus === 'error' ? (
+              <AlertCircle className="w-5 h-5" />
+            ) : (
+              <CloudUpload className="w-5 h-5" />
+            )}
+          </Button>
 
           {/* Delete Button - removes from app + cloud */}
           <Button
