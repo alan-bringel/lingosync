@@ -2219,29 +2219,29 @@ export default function App() {
             <p className={cn("text-xl font-semibold truncate transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
               {track.title}
             </p>
-            {isSyncing === track.id && (
-              <div className="mt-2 space-y-1">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-[#827367]" />
-                  <span className="text-xs text-[#827367] font-medium">
-                    {syncDirectionRef.current === 'upload'
-                      ? 'Enviando para a nuvem'
-                      : 'Baixando da nuvem'}
-                    <span className="animate-dots inline-block ml-0.5">...</span>
-                    {' '}{downloadProgress[track.id] || 0}%
-                  </span>
+            <div className="min-h-[36px]">
+              {isSyncing === track.id ? (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin text-[#827367] shrink-0" />
+                    <span className="text-xs text-[#827367] font-medium">
+                      {syncDirectionRef.current === 'upload'
+                        ? 'Enviando para a nuvem'
+                        : 'Baixando da nuvem'}
+                      <span className="animate-dots inline-block ml-0.5">...</span>
+                    </span>
+                    <span className="text-xs text-[#827367] font-medium w-9 text-right tabular-nums">{downloadProgress[track.id] || 0}%</span>
+                  </div>
+                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
+                  </div>
                 </div>
-                <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
-                </div>
-              </div>
-            )}
-            {track.syncStatus === 'missing_local' && isSyncing !== track.id && (
-              <p className="text-xs text-[#827367]/60 mt-1">Disponível na nuvem — clique para baixar</p>
-            )}
-            {track.syncStatus === 'error' && isSyncing !== track.id && (
-              <p className="text-xs text-[#827367]/60 mt-1">Erro ao sincronizar — clique na nuvem para tentar novamente</p>
-            )}
+              ) : track.syncStatus === 'missing_local' ? (
+                <p className="text-xs text-[#827367]/60 mt-2">Disponível na nuvem — clique para baixar</p>
+              ) : track.syncStatus === 'error' ? (
+                <p className="text-xs text-[#827367]/60 mt-2">Erro ao sincronizar — clique na nuvem para tentar novamente</p>
+              ) : null}
+            </div>
           </div>
 
           {/* Drag/Menu Icon - Two Lines */}
