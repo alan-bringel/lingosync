@@ -979,6 +979,22 @@ export default function App() {
       return;
     }
 
+    // No local flashcards — check Drive before generating new ones
+    if (isGoogleLoggedIn && currentTrack.driveFileId) {
+      try {
+        const jsonBlob = await googleDriveService.downloadFile(currentTrack.driveFileId);
+        const jsonData = JSON.parse(await jsonBlob.text());
+        const remoteTrack = jsonData as AudioTrack;
+        if (remoteTrack.flashcards && remoteTrack.flashcards.length > 0) {
+          handleUpdateTrack({ flashcards: remoteTrack.flashcards });
+          setShowFlashcards(true);
+          return;
+        }
+      } catch (err) {
+        console.debug("Failed to check Drive for flashcards:", err);
+      }
+    }
+
     if (!deepseekApiKey || deepseekApiKey.trim() === "") {
       alert("Configure sua chave DeepSeek nas Configurações para gerar flashcards.");
       setShowSettings(true);
@@ -1179,31 +1195,41 @@ export default function App() {
         changed = true;
       }
 
-      // Merge flashcards audioBase64
-      if (remoteTrack.flashcards && track.flashcards) {
-        for (let i = 0; i < remoteTrack.flashcards.length; i++) {
-          const rc = remoteTrack.flashcards[i];
-          const lc = track.flashcards[i];
-          if (lc && rc && lc.id === rc.id && rc.audioBase64) {
-            const mergedAudio = { ...(typeof lc.audioBase64 === 'object' ? lc.audioBase64 : {}), ...(typeof rc.audioBase64 === 'object' ? rc.audioBase64 : {}) };
-            if (Object.keys(mergedAudio).length > Object.keys(typeof lc.audioBase64 === 'object' ? lc.audioBase64 : {}).length) {
-              track.flashcards[i] = { ...lc, audioBase64: mergedAudio };
-              changed = true;
+      // Merge flashcards from remote if local is empty/incomplete
+      let mergedFlashcards = track.flashcards;
+      if (remoteTrack.flashcards && remoteTrack.flashcards.length > 0) {
+        if (!mergedFlashcards || mergedFlashcards.length === 0) {
+          // Local has no flashcards — copy full cards from remote
+          mergedFlashcards = remoteTrack.flashcards;
+          changed = true;
+        } else {
+          // Both have flashcards: merge audioBase64
+          const newFlashcards = [...mergedFlashcards];
+          for (let i = 0; i < remoteTrack.flashcards.length; i++) {
+            const rc = remoteTrack.flashcards[i];
+            const lc = newFlashcards[i];
+            if (lc && rc && lc.id === rc.id && rc.audioBase64) {
+              const mergedAudio = { ...(typeof lc.audioBase64 === 'object' ? lc.audioBase64 : {}), ...(typeof rc.audioBase64 === 'object' ? rc.audioBase64 : {}) };
+              if (Object.keys(mergedAudio).length > Object.keys(typeof lc.audioBase64 === 'object' ? lc.audioBase64 : {}).length) {
+                newFlashcards[i] = { ...lc, audioBase64: mergedAudio };
+                changed = true;
+              }
             }
           }
+          mergedFlashcards = newFlashcards;
         }
       }
 
       if (!changed) return;
 
-      const updatedTrack = { ...track, knownWords: mergedKnown };
+      const updatedTrack = { ...track, knownWords: mergedKnown, flashcards: mergedFlashcards };
 
       syncLatestToRef(updatedTrack);
       requestSyncImmediate(track.id);
 
-      await updateTrackMetadata(track.id, { knownWords: mergedKnown });
+      await updateTrackMetadata(track.id, { knownWords: mergedKnown, flashcards: mergedFlashcards });
       setPlaylist(prev => {
-        const updated = prev.map(t => t.id === track.id ? { ...t, knownWords: mergedKnown, flashcards: updatedTrack.flashcards } : t);
+        const updated = prev.map(t => t.id === track.id ? { ...t, knownWords: mergedKnown, flashcards: mergedFlashcards } : t);
         refreshGlobalKnownWords(updated);
         return updated;
       });
