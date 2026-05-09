@@ -1109,10 +1109,14 @@ export default function App() {
     }
   }, [currentView, isGoogleLoggedIn, isLoading, checkDriveRestore]);
 
-  // Periodic sync: check Drive for current lesson changes every 30 seconds
+  // Periodic sync: check Drive for current lesson changes every 15 seconds
   const lastPeriodicSyncRef = useRef(0);
+  const currentTrackIndexRef = useRef(currentTrackIndex);
+  currentTrackIndexRef.current = currentTrackIndex;
   const periodicSyncCurrentTrack = async () => {
-    const track = playlist[currentTrackIndex];
+    const trackId = playlist[currentTrackIndexRef.current]?.id;
+    if (!trackId) return;
+    const track = latestTrackRef.current.get(trackId);
     if (!track?.driveFileId || !isGoogleLoggedIn || currentView !== 'lesson') return;
     try {
       const jsonBlob = await googleDriveService.downloadFile(track.driveFileId);
@@ -1131,15 +1135,14 @@ export default function App() {
       }
 
       // Merge flashcards audioBase64
-      let mergedFlashcards = track.flashcards ? [...track.flashcards] : [];
-      if (remoteTrack.flashcards && mergedFlashcards.length > 0) {
+      if (remoteTrack.flashcards && track.flashcards) {
         for (let i = 0; i < remoteTrack.flashcards.length; i++) {
           const rc = remoteTrack.flashcards[i];
-          const lc = mergedFlashcards[i];
+          const lc = track.flashcards[i];
           if (lc && rc && lc.id === rc.id && rc.audioBase64) {
             const mergedAudio = { ...(typeof lc.audioBase64 === 'object' ? lc.audioBase64 : {}), ...(typeof rc.audioBase64 === 'object' ? rc.audioBase64 : {}) };
             if (Object.keys(mergedAudio).length > Object.keys(typeof lc.audioBase64 === 'object' ? lc.audioBase64 : {}).length) {
-              mergedFlashcards[i] = { ...lc, audioBase64: mergedAudio };
+              track.flashcards[i] = { ...lc, audioBase64: mergedAudio };
               changed = true;
             }
           }
@@ -1148,17 +1151,17 @@ export default function App() {
 
       if (!changed) return;
 
-      const updatedTrack = { ...track, knownWords: mergedKnown, flashcards: mergedFlashcards };
+      const updatedTrack = { ...track, knownWords: mergedKnown };
 
-      if (isGoogleLoggedIn) {
-        syncLatestToRef(updatedTrack);
-        requestSyncImmediate(track.id);
-      }
+      syncLatestToRef(updatedTrack);
+      requestSyncImmediate(track.id);
 
-      await updateTrackMetadata(track.id, { knownWords: mergedKnown, flashcards: mergedFlashcards });
-      refreshGlobalKnownWords(playlist.map(t => t.id === track.id ? updatedTrack : t));
-
-      setPlaylist(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
+      await updateTrackMetadata(track.id, { knownWords: mergedKnown });
+      setPlaylist(prev => {
+        const updated = prev.map(t => t.id === track.id ? { ...t, knownWords: mergedKnown } : t);
+        refreshGlobalKnownWords(updated);
+        return updated;
+      });
     } catch (err) {
       console.debug("Periodic sync check error:", err);
     }
@@ -1166,15 +1169,13 @@ export default function App() {
 
   useEffect(() => {
     if (!isGoogleLoggedIn || isLoading || currentView !== 'lesson') return;
+    lastPeriodicSyncRef.current = Date.now();
     const interval = setInterval(() => {
-      const now = Date.now();
-      if (now - lastPeriodicSyncRef.current > 15000) {
-        lastPeriodicSyncRef.current = now;
-        periodicSyncCurrentTrack();
-      }
+      lastPeriodicSyncRef.current = Date.now();
+      periodicSyncCurrentTrack();
     }, 15000);
     return () => clearInterval(interval);
-  }, [isGoogleLoggedIn, isLoading, currentView, currentTrackIndex, playlist.length]);
+  }, [isGoogleLoggedIn, isLoading, currentView]);
 
   const toggleGlobalKnownWord = (word: string) => {
     const lower = word.toLowerCase();
