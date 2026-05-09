@@ -235,16 +235,16 @@ function enforceSegmentWordLimit(transcript: TranscriptSegment[]): TranscriptSeg
   const rebuilt: TranscriptSegment[] = [];
 
   for (const segment of normalized) {
-    const words = Array.isArray(segment.words) ? segment.words : [];
-    const textWordCount = segment.text.trim().split(/\s+/).filter(Boolean).length;
-    const wordCount = words.length > 0 ? words.length : textWordCount;
+    const textWords = segment.text.trim().split(/\s+/).filter(Boolean);
+    const textWordCount = textWords.length;
 
-    if (wordCount <= MAX_WORDS_PER_SEGMENT) {
+    if (textWordCount <= MAX_WORDS_PER_SEGMENT) {
       rebuilt.push(segment);
       continue;
     }
 
-    const wordIterations = words.length > 0 ? words : splitTextIntoEstimatedWords(segment.text, segment.start, segment.end);
+    const hasWordsArray = Array.isArray(segment.words) && segment.words.length > 0;
+    const wordIterations = hasWordsArray ? segment.words : splitTextIntoEstimatedWords(segment.text, segment.start, segment.end);
     const textChunks = splitSegmentTextPreservingPunctuation(segment.text, MAX_WORDS_PER_SEGMENT);
     const chunks: Word[][] = [];
     for (let i = 0; i < wordIterations.length; i += MAX_WORDS_PER_SEGMENT) {

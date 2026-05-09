@@ -200,6 +200,12 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
         prev.text = (prev.text.trim() + " " + current.text.trim()).trim();
       }
       
+      // Merge words array
+      if (Array.isArray(current.words) && current.words.length > 0) {
+        const prevWords = Array.isArray(prev.words) ? prev.words : [];
+        prev.words = [...prevWords, ...current.words];
+      }
+      
       // Merge translation
       let t1 = prev.translation?.trim() || "";
       let t2 = current.translation?.trim() || "";
