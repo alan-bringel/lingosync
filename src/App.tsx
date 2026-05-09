@@ -851,92 +851,42 @@ export default function App() {
       const audioUrl = URL.createObjectURL(audioBlob);
 
       // Use AssemblyAI to transcribe the TTS audio for precise word timestamps
-      let transcript: TranscriptSegment[];
-      try {
-        const { transcribeAudioRawWords } = await import("./services/assemblyAiService");
-        const assemblyResult = await transcribeAudioRawWords(audioBlob, assemblyAiApiKey);
-        const assemblyWords = assemblyResult.words;
+      const { transcribeAudioRawWords } = await import("./services/assemblyAiService");
+      const assemblyResult = await transcribeAudioRawWords(audioBlob, assemblyAiApiKey);
+      const assemblyWords = assemblyResult.words;
 
-        // Count words per DeepSeek segment to map to AssemblyAI word slices
-        const segWordRanges: { start: number; end: number }[] = [];
-        let wordOffset = 0;
-        for (const seg of rawSegments) {
-          const wordCount = seg.text.trim().split(/\s+/).filter(Boolean).length;
-          segWordRanges.push({ start: wordOffset, end: wordOffset + wordCount });
-          wordOffset += wordCount;
-        }
-        const totalSegmentWords = segWordRanges.length > 0 ? segWordRanges[segWordRanges.length - 1].end : 0;
-
-        if (totalSegmentWords === assemblyWords.length && assemblyWords.length > 0) {
-          // Perfect word count match — use precise AssemblyAI timestamps
-          transcript = rawSegments.map((seg: { text: string; translation: string }, i: number) => {
-            const range = segWordRanges[i];
-            const segAssemblyWords = assemblyWords.slice(range.start, range.end);
-            return {
-              text: seg.text,
-              translation: seg.translation,
-              start: segAssemblyWords[0].start / 1000,
-              end: segAssemblyWords[segAssemblyWords.length - 1].end / 1000,
-              words: segAssemblyWords.map((w: { text: string; start: number; end: number }) => ({
-                text: w.text,
-                start: w.start / 1000,
-                end: w.end / 1000,
-              })),
-            };
-          });
-        } else {
-          // Word count mismatch — fall back to proportional distribution
-          throw new Error("Word count mismatch between segments and transcription");
-        }
-      } catch {
-        // Fallback: distribute segment timings proportionally by word count
-        const totalWords = text.trim().split(/\s+/).length;
-        let actualDuration = Math.max(totalWords * 0.35, 10);
-        try {
-          actualDuration = await new Promise<number>((resolve, reject) => {
-            const tempAudio = new Audio();
-            const onLoaded = () => {
-              const dur = tempAudio.duration;
-              if (dur && dur > 0 && isFinite(dur)) {
-                resolve(dur);
-              } else {
-                reject(new Error("Invalid duration"));
-              }
-              tempAudio.removeEventListener('loadedmetadata', onLoaded);
-            };
-            tempAudio.addEventListener('loadedmetadata', onLoaded);
-            tempAudio.onerror = () => reject(new Error("Audio load error"));
-            tempAudio.preload = 'metadata';
-            tempAudio.src = audioUrl;
-          });
-        } catch {
-          // Keep estimate if we can't get actual duration
-        }
-
-        const segWordCounts = rawSegments.map((s: { text: string; translation: string }) =>
-          s.text.trim().split(/\s+/).filter((w: string) => w.length > 0).length
-        );
-        const totalSegWords = segWordCounts.reduce((a: number, b: number) => a + b, 0);
-        let accumulatedTime = 0;
-        transcript = rawSegments.map((s: { text: string; translation: string }, i: number) => {
-          const segWords = s.text.trim().split(/\s+/).filter(Boolean);
-          const segDuration = (segWordCounts[i] / totalSegWords) * actualDuration;
-          const segStart = accumulatedTime;
-          const segEnd = accumulatedTime + segDuration;
-          accumulatedTime = segEnd;
-          return {
-            text: s.text,
-            translation: s.translation,
-            start: segStart,
-            end: Math.max(segEnd, segStart + 0.3),
-            words: segWords.map((w: string, wi: number) => {
-              const wordStart = segStart + (wi / segWords.length) * segDuration;
-              const wordEnd = segStart + ((wi + 1) / segWords.length) * segDuration;
-              return { text: w, start: wordStart, end: wordEnd };
-            }),
-          };
-        });
+      // Count words per DeepSeek segment to map to AssemblyAI word slices
+      const segWordRanges: { start: number; end: number }[] = [];
+      let wordOffset = 0;
+      for (const seg of rawSegments) {
+        const wordCount = seg.text.trim().split(/\s+/).filter(Boolean).length;
+        segWordRanges.push({ start: wordOffset, end: wordOffset + wordCount });
+        wordOffset += wordCount;
       }
+      const totalSegmentWords = segWordRanges.length > 0 ? segWordRanges[segWordRanges.length - 1].end : 0;
+
+      if (totalSegmentWords !== assemblyWords.length || assemblyWords.length === 0) {
+        throw new Error(
+          `Contagem de palavras não corresponde entre os segmentos (${totalSegmentWords}) e a transcrição do AssemblyAI (${assemblyWords.length}). ` +
+          `Isso pode ocorrer se o TTS gerou um áudio com palavras diferentes do texto original.`
+        );
+      }
+
+      const transcript: TranscriptSegment[] = rawSegments.map((seg: { text: string; translation: string }, i: number) => {
+        const range = segWordRanges[i];
+        const segAssemblyWords = assemblyWords.slice(range.start, range.end);
+        return {
+          text: seg.text,
+          translation: seg.translation,
+          start: segAssemblyWords[0].start / 1000,
+          end: segAssemblyWords[segAssemblyWords.length - 1].end / 1000,
+          words: segAssemblyWords.map((w: { text: string; start: number; end: number }) => ({
+            text: w.text,
+            start: w.start / 1000,
+            end: w.end / 1000,
+          })),
+        };
+      });
 
       const newTrack: AudioTrack = {
         id: Date.now().toString(36) + Math.random().toString(36).substring(2),
