@@ -409,8 +409,8 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     const parts = text.split(pattern);
 
     // Active uses a slightly muted brown, Inactive uses a more discreet faded brown
-    const knownColorClass = isActive ? "text-[#827367]/85" : "text-[#827367]/50";
-    const baseColorClass = isActive ? "text-gray-200" : "text-gray-500";
+    const knownColorClass = isActive ? "text-[#827367]" : "text-[#827367]/50";
+    const baseColorClass = isActive ? "text-gray-300" : "text-gray-500";
 
     return parts.map((part, i) => {
       const isWord = pattern.test(part);
@@ -1101,7 +1101,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         {/* Transcript Area */}
         {isMaximized ? (
           <div className="flex-1 min-h-0 px-4 sm:px-8 py-4 flex flex-col overflow-hidden">
-            <div className="flex-1 flex items-center justify-center overflow-y-auto min-h-0">
+            <div className="flex-1 overflow-y-auto min-h-0">
               <div className="w-full max-w-4xl mx-auto px-6 sm:px-10 py-4">
                 <div className="min-w-0">
                   {(() => {
@@ -1109,7 +1109,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     const sIdx = focusSegmentIndex;
                     if (editingIndex === sIdx) {
                       return (
-                        <div className="space-y-4" onClick={e => e.stopPropagation()}>
+                        <div className="space-y-4 relative z-50 bg-[#0d0d0d]" onClick={e => e.stopPropagation()}>
                           <div className="space-y-3 border-b-[1.5px] border-white/10 pb-4">
                             <div className="flex justify-between items-center px-1">
                               <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500 flex items-center">
