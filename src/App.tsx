@@ -7,6 +7,7 @@ const ScrollArea = ({ children, className }: any) => <div className={className} 
 // import { Badge } from "@/components/ui/badge";
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
+import { GerarLicaoModal } from "./components/GerarLicaoModal";
 import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle, LogOut } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
@@ -672,6 +673,7 @@ export default function App() {
   const [showAudioErrorModal, setShowAudioErrorModal] = useState(false);
   const [audioErrorMessage, setAudioErrorMessage] = useState("");
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showGerarLicaoModal, setShowGerarLicaoModal] = useState(false);
   const [isSyncingVideo, setIsSyncingVideo] = useState(false);
   const [showMissingAudioModal, setShowMissingAudioModal] = useState(false);
   const [isSyncingAudio, setIsSyncingAudio] = useState(false);
@@ -826,6 +828,84 @@ export default function App() {
 
   const [returnSegmentIndex, setReturnSegmentIndex] = useState<number | null>(null);
   const [externalJumpToSegmentIndex, setExternalJumpToSegmentIndex] = useState<number | null>(null);
+
+  const handleGerarPorTexto = async ({ title, text, voice }: { title: string; text: string; voice: string }) => {
+    setIsTranscribing(true);
+    setShowGerarLicaoModal(false);
+    try {
+      const { generateLessonSegments: generateSegments, requestTtsAudio: requestTts } = await import("./services/geminiService");
+
+      // Generate segments from text
+      const rawSegments = await generateSegments(title, text, nativeLanguage, deepseekApiKey, hasBillingEnabled);
+
+      // Convert to TranscriptSegment format with computed timings
+      const totalWords = text.trim().split(/\s+/).length;
+      const estimatedDuration = Math.max(totalWords * 0.35, 10);
+      const segmentsPerSecond = rawSegments.length / estimatedDuration;
+      const transcript: TranscriptSegment[] = rawSegments.map((s: { text: string; translation: string }, i: number) => {
+        const segWords = s.text.trim().split(/\s+/).filter(Boolean);
+        const segStart = Math.min(i / segmentsPerSecond, estimatedDuration - 0.5);
+        const segEnd = Math.min((i + 1) / segmentsPerSecond, estimatedDuration);
+        return {
+          text: s.text,
+          translation: s.translation,
+          start: segStart,
+          end: Math.max(segEnd, segStart + 0.5),
+          words: segWords.map((w: string, wi: number) => {
+            const wordStart = segStart + (wi / segWords.length) * (segEnd - segStart);
+            const wordEnd = segStart + ((wi + 1) / segWords.length) * (segEnd - segStart);
+            return { text: w, start: wordStart, end: wordEnd };
+          }),
+        };
+      });
+
+      // Generate full audio narration
+      const base64Audio = await requestTts(text, voice);
+
+      // Create audio blob from base64
+      const binaryStr = atob(base64Audio);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      const audioBlob = new Blob([bytes], { type: 'audio/mp3' });
+
+      const newTrack: AudioTrack = {
+        id: Date.now().toString(36) + Math.random().toString(36).substring(2),
+        title: title,
+        artist: "",
+        url: URL.createObjectURL(audioBlob),
+        coverUrl: `https://picsum.photos/seed/${title}/400/400`,
+        transcript: enforceSegmentWordLimit(transcript),
+        language: currentLanguage
+      };
+
+      await saveTrack(newTrack, audioBlob);
+
+      setPlaylist((prev) => {
+        const newList = [...prev, newTrack];
+        setCurrentTrackIndex(newList.length - 1);
+        return newList;
+      });
+
+      if (isGoogleLoggedIn) {
+        syncTrackToDrive(newTrack);
+        setTimeout(() => evictCacheIfNeeded(), 500);
+      }
+
+      setCurrentView('lesson');
+    } catch (error: any) {
+      if (error.message === "QUOTA_EXCEEDED") {
+        setShowQuotaModal(true);
+      } else {
+        console.error("Text lesson generation failed:", error);
+        const errorMessage = typeof error === 'string' ? error : error?.message;
+        alert(`Erro ao gerar lição por texto: ${errorMessage || 'Falha ao processar. Tente novamente mais tarde.'}`);
+      }
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -2053,7 +2133,7 @@ export default function App() {
                             <button
                               onClick={async () => {
                                 const ok = await requireGoogleLogin();
-                                if (ok) fileInputRef.current?.click();
+                                if (ok) setShowGerarLicaoModal(true);
                               }}
                               disabled={isTranscribing}
                               className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
@@ -2766,6 +2846,17 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Gerar Lição Modal */}
+        <GerarLicaoModal
+          isOpen={showGerarLicaoModal}
+          onClose={() => setShowGerarLicaoModal(false)}
+          onAudioSelected={() => {
+            setShowGerarLicaoModal(false);
+            fileInputRef.current?.click();
+          }}
+          onTextSubmit={handleGerarPorTexto}
+        />
 
         {/* Rate Limit Modal */}
         <RateLimitModal

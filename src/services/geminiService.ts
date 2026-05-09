@@ -421,7 +421,7 @@ export function isQuotaError(error: any): boolean {
   return msg.includes("429") || msg.includes("quota") || msg.includes("resource_exhausted");
 }
 
-async function requestTtsAudio(
+export async function requestTtsAudio(
   text: string,
   voiceName: string
 ): Promise<string | undefined> {
