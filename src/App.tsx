@@ -872,19 +872,38 @@ export default function App() {
         );
       }
 
-      const transcript: TranscriptSegment[] = rawSegments.map((seg: { text: string; translation: string }, i: number) => {
+      // Build transcript with playback buffers (same approach as audio lessons)
+      const SEGMENT_PREROLL = 0.5;
+      const SEGMENT_POSTROLL = 0.5;
+      const rawTranscript: TranscriptSegment[] = rawSegments.map((seg: { text: string; translation: string }, i: number) => {
         const range = segWordRanges[i];
         const segAssemblyWords = assemblyWords.slice(range.start, range.end);
+        const exactStart = segAssemblyWords[0].start / 1000;
+        const exactEnd = segAssemblyWords[segAssemblyWords.length - 1].end / 1000;
         return {
           text: seg.text,
           translation: seg.translation,
-          start: segAssemblyWords[0].start / 1000,
-          end: segAssemblyWords[segAssemblyWords.length - 1].end / 1000,
+          start: exactStart,
+          end: exactEnd,
           words: segAssemblyWords.map((w: { text: string; start: number; end: number }) => ({
             text: w.text,
             start: w.start / 1000,
             end: w.end / 1000,
           })),
+        };
+      });
+
+      // Apply playback buffers while preventing overlaps between adjacent segments
+      let previousEnd = 0;
+      const transcript: TranscriptSegment[] = rawTranscript.map((seg, i) => {
+        const desiredStart = Math.max(seg.start - SEGMENT_PREROLL, previousEnd, 0);
+        const start = desiredStart;
+        const end = seg.end + SEGMENT_POSTROLL;
+        previousEnd = end;
+        return {
+          ...seg,
+          start,
+          end,
         };
       });
 
