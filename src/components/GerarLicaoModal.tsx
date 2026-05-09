@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Loader2, Play, Headphones } from "lucide-react";
-import { Textarea } from "./ui/textarea";
 import { requestTtsAudio } from "../services/geminiService";
 
 interface GerarLicaoModalProps {
@@ -29,7 +28,7 @@ export function GerarLicaoModal({ isOpen, onClose, onAudioSelected, onTextSubmit
   const [isPreviewLoading, setIsPreviewLoading] = useState<string | null>(null);
   const [previewAudios, setPreviewAudios] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const persistentAudioRef = useRef<HTMLAudioElement>(null);
 
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
   const isOverLimit = wordCount > 120;
@@ -73,13 +72,15 @@ export function GerarLicaoModal({ isOpen, onClose, onAudioSelected, onTextSubmit
   };
 
   const playAudio = (base64: string) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
+    const el = persistentAudioRef.current;
+    if (el) {
+      el.pause();
+      el.src = `data:audio/mp3;base64,${base64}`;
+      el.play().catch(console.error);
+    } else {
+      const audio = new Audio(`data:audio/mp3;base64,${base64}`);
+      audio.play().catch(console.error);
     }
-    const audio = new Audio(`data:audio/mp3;base64,${base64}`);
-    audioRef.current = audio;
-    audio.play().catch(console.error);
   };
 
   const handleGenerate = () => {
@@ -105,6 +106,8 @@ export function GerarLicaoModal({ isOpen, onClose, onAudioSelected, onTextSubmit
             onClick={e => e.stopPropagation()}
           >
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#827367]/50 to-transparent" />
+
+            <audio ref={persistentAudioRef} className="hidden" />
 
             {step === "choose" ? (
               <div className="p-8 text-center space-y-6">
@@ -228,11 +231,7 @@ export function GerarLicaoModal({ isOpen, onClose, onAudioSelected, onTextSubmit
                         </button>
                       ))}
                     </div>
-                    {previewAudios[selectedVoice] && (
-                      <p className="text-xs text-gray-500 text-center">
-                        Prévia disponível. Clique novamente para ouvir.
-                      </p>
-                    )}
+
                   </div>
                 </div>
 
