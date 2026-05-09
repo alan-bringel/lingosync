@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { Play, Pause, SkipBack, SkipForward, Languages, ChevronDown, ChevronUp, Download, Edit2, Check, X, Settings2, Clock, Sparkles, Infinity as InfinityIcon, Gauge, Repeat, Youtube, Monitor, MonitorOff, RefreshCw, Loader2, Book, Edit3, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Languages, ChevronDown, ChevronUp, Download, Edit2, Check, X, Settings2, Clock, Sparkles, Infinity as InfinityIcon, Gauge, Repeat, Youtube, Monitor, MonitorOff, RefreshCw, Loader2, Book, Edit3 } from "lucide-react";
 
 declare global {
   interface Window {
@@ -1102,58 +1102,85 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         <ScrollArea className="flex-1 min-h-0 px-4 sm:px-8 py-4">
           <div className="space-y-2 pb-8">
             {isMaximized ? (
-              <div
-                key={focusSegmentIndex}
-                id={`segment-${focusSegmentIndex}`}
-                className="group rounded-xl p-3 sm:p-4 transition-opacity duration-200"
-              >
-                  {(() => {
-                    const segment = track.transcript[focusSegmentIndex];
-                    const sIdx = focusSegmentIndex;
-                    return (
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-start group/title pb-1 transition-all duration-300">
-                          <div className="text-[1.3rem] sm:text-xl leading-relaxed flex-1">
-                            {renderSegmentText(segment.text, isSegmentActive(segment), sIdx)}
-                          </div>
-                        </div>
-                        <div className="flex flex-col space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={(e) => toggleTranslation(sIdx, e)}
-                                className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
-                                title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
-                              >
-                                {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                              </button>
+              <div className="h-full flex flex-col">
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="flex items-center gap-4 sm:gap-8 w-full max-w-4xl mx-auto px-2">
+                    <button
+                      onClick={() => setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length)}
+                      className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-gray-500 hover:text-gray-200 transition-all active:scale-90 rounded-2xl hover:bg-white/5"
+                      title="Segmento anterior"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-12 h-12 sm:w-14 sm:h-14 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 5 L6 12 L16 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </svg>
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      {(() => {
+                        const segment = track.transcript[focusSegmentIndex];
+                        const sIdx = focusSegmentIndex;
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-start group/title pb-1 transition-all duration-300">
+                              <div className="text-[1.3rem] sm:text-xl leading-relaxed">
+                                {renderSegmentText(segment.text, isSegmentActive(segment), sIdx)}
+                              </div>
+                            </div>
+                            <div className="flex flex-col space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    onClick={(e) => toggleTranslation(sIdx, e)}
+                                    className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
+                                    title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
+                                  >
+                                    {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                  </button>
+                                </div>
+                              </div>
+                              <AnimatePresence>
+                                {showTranslations[sIdx] && (
+                                  <motion.p
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    onClick={() => {
+                                      if (isMaximized) {
+                                        playSegment(segment.start, segment.end, sIdx);
+                                      }
+                                    }}
+                                    className={cn(
+                                      "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
+                                      isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
+                                    )}
+                                  >
+                                    {segment.translation || "(Tradução indisponível para este segmento.)"}
+                                  </motion.p>
+                                )}
+                              </AnimatePresence>
                             </div>
                           </div>
-                          <AnimatePresence>
-                            {showTranslations[sIdx] && (
-                              <motion.p
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                onClick={() => {
-                                  if (isDictionaryModeGlobal && isMaximized) {
-                                    playSegment(segment.start, segment.end, sIdx);
-                                  }
-                                }}
-                                className={cn(
-                                  "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
-                                  isDictionaryModeGlobal && isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
-                                )}
-                              >
-                                {segment.translation || "(Tradução indisponível para este segmento.)"}
-                              </motion.p>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                        );
+                      })()}
+                    </div>
+
+                    <button
+                      onClick={() => setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length)}
+                      className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center text-gray-500 hover:text-gray-200 transition-all active:scale-90 rounded-2xl hover:bg-white/5"
+                      title="Próximo segmento"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-12 h-12 sm:w-14 sm:h-14 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 5 L18 12 L8 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
+                <div className="text-center pb-4">
+                  <span className="text-sm font-mono text-gray-500">
+                    {focusSegmentIndex + 1} / {track.transcript.length}
+                  </span>
+                </div>
+              </div>
             ) : (
               track.transcript.map((segment, sIdx) => (
               <motion.div
@@ -1292,13 +1319,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                               animate={{ height: "auto", opacity: 1 }}
                               exit={{ height: 0, opacity: 0 }}
                               onClick={() => {
-                                if (isDictionaryModeGlobal && isMaximized) {
+                                if (isDictionaryModeGlobal) {
                                   playSegment(segment.start, segment.end, sIdx);
                                 }
                               }}
                               className={cn(
                                 "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
-                                isDictionaryModeGlobal && isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
+                                isDictionaryModeGlobal && "cursor-pointer hover:text-gray-200 transition-colors"
                               )}
                             >
                               {segment.translation || "(Tradução indisponível para este segmento.)"}
@@ -1353,40 +1380,25 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
               </div>
 
               <div className="flex items-center space-x-6 sm:space-x-8">
-                {isMaximized ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setFocusSegmentIndex(prev => Math.max(0, prev - 1))}
-                    disabled={focusSegmentIndex === 0}
-                    className="w-16 h-16 sm:w-14 sm:h-14 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
-                    title="Segmento anterior"
-                  >
-                    <svg viewBox="0 0 24 24" className="w-12 h-12 sm:w-11 sm:h-11 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M16 5 L6 12 L16 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                    </svg>
-                  </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onPointerDown={handleVideoTouchStart}
-                    onPointerUp={handleVideoTouchEnd}
-                    onPointerLeave={() => {
-                      if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current);
-                        longPressTimerRef.current = null;
-                      }
-                    }}
-                    className={cn(
-                      "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
-                      hasVideo && showVideo ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
-                    )}
-                    title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
-                  >
-                    <Youtube className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onPointerDown={handleVideoTouchStart}
+                  onPointerUp={handleVideoTouchEnd}
+                  onPointerLeave={() => {
+                    if (longPressTimerRef.current) {
+                      clearTimeout(longPressTimerRef.current);
+                      longPressTimerRef.current = null;
+                    }
+                  }}
+                  className={cn(
+                    "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
+                    hasVideo && showVideo ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                  )}
+                  title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
+                >
+                  <Youtube className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
+                </Button>
                 <Button
                   onClick={togglePlay}
                   size="icon"
@@ -1398,34 +1410,18 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     <Play className="w-8 h-8 sm:w-6 sm:h-6 fill-current ml-1" />
                   )}
                 </Button>
-                {isMaximized ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setFocusSegmentIndex(prev => Math.min(track.transcript.length - 1, prev + 1))}
-                    disabled={focusSegmentIndex === track.transcript.length - 1}
-                    className="w-16 h-16 sm:w-14 sm:h-14 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
-                    title="Próximo segmento"
-                  >
-                    <svg viewBox="0 0 24 24" className="w-12 h-12 sm:w-11 sm:h-11 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M8 5 L18 12 L8 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                    </svg>
-                  </Button>
-                ) : null}
-                {!isMaximized && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsEditModeGlobal(!isEditModeGlobal)}
-                    className={cn(
-                      "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
-                      isEditModeGlobal ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
-                    )}
-                    title={isEditModeGlobal ? "Sair da Edição" : "Modo Edição"}
-                  >
-                    <Edit2 className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsEditModeGlobal(!isEditModeGlobal)}
+                  className={cn(
+                    "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
+                    isEditModeGlobal ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                  )}
+                  title={isEditModeGlobal ? "Sair da Edição" : "Modo Edição"}
+                >
+                  <Edit2 className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
+                </Button>
               </div>
 
               <div className="scale-110 sm:scale-100">
