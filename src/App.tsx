@@ -2820,36 +2820,6 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                        <div className="relative">
-                          <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-white/10" />
-                          </div>
-                          <div className="relative flex justify-center text-xs uppercase tracking-widest">
-                            <span className="bg-[#161616] px-3 text-gray-500">ou</span>
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-gray-500 mb-2">
-                            Se preferir, selecione manualmente a pasta com o arquivo de áudio.
-                          </p>
-                          <Button
-                            onClick={() => {
-                              const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-                              const canUseDirectoryPicker = !isSafari && 'showDirectoryPicker' in window;
-                              if (canUseDirectoryPicker) {
-                                handleSyncAudioFolder();
-                              } else {
-                                folderInputRef.current?.click();
-                              }
-                            }}
-                            disabled={isSyncingAudio}
-                            variant="ghost"
-                            className="text-gray-400 hover:text-gray-200 text-xs font-bold uppercase tracking-widest"
-                          >
-                            <RotateCw className="w-3 h-3 mr-1.5" />
-                            Selecionar Pasta
-                          </Button>
-                        </div>
                       </div>
                     ) : (
                       <div className="space-y-3">
