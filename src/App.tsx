@@ -287,6 +287,7 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const dirtyTracksRef = useRef<Map<string, AudioTrack | null>>(new Map());
   const syncingTrackIdRef = useRef<string | null>(null);
+  const deletedDriveIdsRef = useRef<Set<string>>(new Set(JSON.parse(localStorage.getItem('lingosync_deleted_drive_ids') || '[]')));
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void } | null>(null);
@@ -909,7 +910,19 @@ export default function App() {
         .map(t => t.driveFileId)
         .filter(Boolean);
       
-      const missingFiles = lsyncFiles.filter(f => !localDriveIds.includes(f.id));
+      const missingFiles = lsyncFiles.filter(f => !localDriveIds.includes(f.id) && !deletedDriveIdsRef.current.has(f.id));
+
+      // Clean up deletedDriveIdsRef for files that no longer exist on Drive
+      let cleaned = false;
+      for (const deletedId of deletedDriveIdsRef.current) {
+        if (!driveFileIds.has(deletedId)) {
+          deletedDriveIdsRef.current.delete(deletedId);
+          cleaned = true;
+        }
+      }
+      if (cleaned) {
+        localStorage.setItem('lingosync_deleted_drive_ids', JSON.stringify([...deletedDriveIdsRef.current]));
+      }
       
       if (missingFiles.length > 0) {
         const confirmRestore = await showConfirm(
@@ -1463,6 +1476,10 @@ export default function App() {
     if (deleteFromDrive && (track.driveFileId || track.driveAudioFileId)) {
       const driveDeleted = await deleteFromDriveWithRetry(track);
       if (!driveDeleted) {
+        if (track.driveFileId) {
+          deletedDriveIdsRef.current.add(track.driveFileId);
+          localStorage.setItem('lingosync_deleted_drive_ids', JSON.stringify([...deletedDriveIdsRef.current]));
+        }
         await showConfirm("Erro", "Não foi possível excluir do Google Drive após várias tentativas. A lição será removida apenas localmente.");
       }
     }
