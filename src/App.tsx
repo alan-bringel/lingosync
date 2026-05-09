@@ -1199,6 +1199,7 @@ export default function App() {
 
   // Periodic sync: check Drive for current lesson changes every 15 seconds
   const lastPeriodicSyncRef = useRef(0);
+  const lastLocalMetadataUpdateRef = useRef(0);
   const currentTrackIndexRef = useRef(currentTrackIndex);
   currentTrackIndexRef.current = currentTrackIndex;
   const currentTrackIdRef = useRef(playlist[currentTrackIndex]?.id);
@@ -1250,12 +1251,16 @@ export default function App() {
       }
 
       // Sync metadata fields from remote (title, lessonNumber, artist, coverUrl, language)
+      // Only if local metadata hasn't been edited within the last 60 seconds
       const metadataChanged: Record<string, any> = {};
       const metadataFields: (keyof Pick<AudioTrack, 'title' | 'lessonNumber' | 'artist' | 'coverUrl' | 'language'>)[] = ['title', 'lessonNumber', 'artist', 'coverUrl', 'language'];
-      for (const field of metadataFields) {
-        if (remoteTrack[field] !== undefined && remoteTrack[field] !== track[field]) {
-          metadataChanged[field] = remoteTrack[field];
-          changed = true;
+      const msSinceLocalEdit = Date.now() - lastLocalMetadataUpdateRef.current;
+      if (msSinceLocalEdit > 60000) {
+        for (const field of metadataFields) {
+          if (remoteTrack[field] !== undefined && remoteTrack[field] !== track[field]) {
+            metadataChanged[field] = remoteTrack[field];
+            changed = true;
+          }
         }
       }
 
@@ -1737,6 +1742,13 @@ export default function App() {
     if (trackId) {
       const { url, localVideoUrl, ...updates } = updatedTrack;
       updateTrackMetadata(trackId, updates);
+
+      // Mark metadata as recently edited locally (prevents periodic sync from overwriting)
+      const metadataFieldsSet = new Set(['title', 'lessonNumber', 'artist', 'coverUrl', 'language']);
+      const hasMetadataChanges = Object.keys(updates).some(k => metadataFieldsSet.has(k));
+      if (hasMetadataChanges) {
+        lastLocalMetadataUpdateRef.current = Date.now();
+      }
 
       setPlaylist(prev => {
         const track = prev.find(t => t.id === trackId);
