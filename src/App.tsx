@@ -236,15 +236,19 @@ function enforceSegmentWordLimit(transcript: TranscriptSegment[]): TranscriptSeg
 
   for (const segment of normalized) {
     const words = Array.isArray(segment.words) ? segment.words : [];
-    if (words.length <= MAX_WORDS_PER_SEGMENT) {
+    const textWordCount = segment.text.trim().split(/\s+/).filter(Boolean).length;
+    const wordCount = words.length > 0 ? words.length : textWordCount;
+
+    if (wordCount <= MAX_WORDS_PER_SEGMENT) {
       rebuilt.push(segment);
       continue;
     }
 
+    const wordIterations = words.length > 0 ? words : splitTextIntoEstimatedWords(segment.text, segment.start, segment.end);
     const textChunks = splitSegmentTextPreservingPunctuation(segment.text, MAX_WORDS_PER_SEGMENT);
     const chunks: Word[][] = [];
-    for (let i = 0; i < words.length; i += MAX_WORDS_PER_SEGMENT) {
-      chunks.push(words.slice(i, i + MAX_WORDS_PER_SEGMENT));
+    for (let i = 0; i < wordIterations.length; i += MAX_WORDS_PER_SEGMENT) {
+      chunks.push(wordIterations.slice(i, i + MAX_WORDS_PER_SEGMENT));
     }
 
     const translations = splitTranslationByWordChunks(
@@ -267,6 +271,18 @@ function enforceSegmentWordLimit(transcript: TranscriptSegment[]): TranscriptSeg
   }
 
   return rebuilt;
+}
+
+function splitTextIntoEstimatedWords(text: string, start: number, end: number): Word[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const duration = end - start;
+  const avgWordDuration = duration / words.length;
+  return words.map((w, i) => ({
+    text: w,
+    start: start + i * avgWordDuration,
+    end: start + (i + 1) * avgWordDuration
+  }));
 }
 
 export default function App() {
