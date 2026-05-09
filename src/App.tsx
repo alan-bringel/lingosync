@@ -838,27 +838,6 @@ export default function App() {
       // Generate segments from text
       const rawSegments = await generateSegments(title, text, nativeLanguage, deepseekApiKey, hasBillingEnabled);
 
-      // Convert to TranscriptSegment format with computed timings
-      const totalWords = text.trim().split(/\s+/).length;
-      const estimatedDuration = Math.max(totalWords * 0.35, 10);
-      const segmentsPerSecond = rawSegments.length / estimatedDuration;
-      const transcript: TranscriptSegment[] = rawSegments.map((s: { text: string; translation: string }, i: number) => {
-        const segWords = s.text.trim().split(/\s+/).filter(Boolean);
-        const segStart = Math.min(i / segmentsPerSecond, estimatedDuration - 0.5);
-        const segEnd = Math.min((i + 1) / segmentsPerSecond, estimatedDuration);
-        return {
-          text: s.text,
-          translation: s.translation,
-          start: segStart,
-          end: Math.max(segEnd, segStart + 0.5),
-          words: segWords.map((w: string, wi: number) => {
-            const wordStart = segStart + (wi / segWords.length) * (segEnd - segStart);
-            const wordEnd = segStart + ((wi + 1) / segWords.length) * (segEnd - segStart);
-            return { text: w, start: wordStart, end: wordEnd };
-          }),
-        };
-      });
-
       // Generate full audio narration
       const base64Audio = await requestTts(text, voice);
 
@@ -869,12 +848,62 @@ export default function App() {
         bytes[i] = binaryStr.charCodeAt(i);
       }
       const audioBlob = new Blob([bytes], { type: 'audio/mp3' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Get actual audio duration by loading into a temporary Audio element
+      const totalWords = text.trim().split(/\s+/).length;
+      let actualDuration = Math.max(totalWords * 0.35, 10);
+      try {
+        actualDuration = await new Promise<number>((resolve, reject) => {
+          const tempAudio = new Audio();
+          const onLoaded = () => {
+            const dur = tempAudio.duration;
+            if (dur && dur > 0 && isFinite(dur)) {
+              resolve(dur);
+            } else {
+              reject(new Error("Invalid duration"));
+            }
+            tempAudio.removeEventListener('loadedmetadata', onLoaded);
+          };
+          tempAudio.addEventListener('loadedmetadata', onLoaded);
+          tempAudio.onerror = () => reject(new Error("Audio load error"));
+          tempAudio.preload = 'metadata';
+          tempAudio.src = audioUrl;
+        });
+      } catch {
+        // Fallback to estimate if we can't get actual duration
+      }
+
+      // Distribute segment timings proportionally within actual duration
+      const segWordCounts = rawSegments.map((s: { text: string; translation: string }) =>
+        s.text.trim().split(/\s+/).filter((w: string) => w.length > 0).length
+      );
+      const totalSegWords = segWordCounts.reduce((a: number, b: number) => a + b, 0);
+      let accumulatedTime = 0;
+      const transcript: TranscriptSegment[] = rawSegments.map((s: { text: string; translation: string }, i: number) => {
+        const segWords = s.text.trim().split(/\s+/).filter(Boolean);
+        const segDuration = (segWordCounts[i] / totalSegWords) * actualDuration;
+        const segStart = accumulatedTime;
+        const segEnd = accumulatedTime + segDuration;
+        accumulatedTime = segEnd;
+        return {
+          text: s.text,
+          translation: s.translation,
+          start: segStart,
+          end: Math.max(segEnd, segStart + 0.3),
+          words: segWords.map((w: string, wi: number) => {
+            const wordStart = segStart + (wi / segWords.length) * segDuration;
+            const wordEnd = segStart + ((wi + 1) / segWords.length) * segDuration;
+            return { text: w, start: wordStart, end: wordEnd };
+          }),
+        };
+      });
 
       const newTrack: AudioTrack = {
         id: Date.now().toString(36) + Math.random().toString(36).substring(2),
         title: title,
         artist: "",
-        url: URL.createObjectURL(audioBlob),
+        url: audioUrl,
         coverUrl: `https://picsum.photos/seed/${title}/400/400`,
         transcript: enforceSegmentWordLimit(transcript),
         language: currentLanguage
