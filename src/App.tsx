@@ -1131,11 +1131,13 @@ export default function App() {
   const lastPeriodicSyncRef = useRef(0);
   const currentTrackIndexRef = useRef(currentTrackIndex);
   currentTrackIndexRef.current = currentTrackIndex;
+  const currentTrackIdRef = useRef(playlist[currentTrackIndex]?.id);
+  currentTrackIdRef.current = playlist[currentTrackIndex]?.id;
   const periodicSyncCurrentTrack = async () => {
-    const trackId = playlist[currentTrackIndexRef.current]?.id;
+    const trackId = currentTrackIdRef.current;
     if (!trackId) return;
     const track = latestTrackRef.current.get(trackId);
-    if (!track?.driveFileId || !isGoogleLoggedIn || currentView !== 'lesson') return;
+    if (!track?.driveFileId || !isGoogleLoggedIn) return;
     try {
       const jsonBlob = await googleDriveService.downloadFile(track.driveFileId);
       const jsonData = JSON.parse(await jsonBlob.text());
@@ -1186,8 +1188,12 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!isGoogleLoggedIn || isLoading || currentView !== 'lesson') return;
+    if (!isGoogleLoggedIn || isLoading || (currentView !== 'lesson' && currentView !== 'library')) return;
     lastPeriodicSyncRef.current = Date.now();
+
+    // Run sync immediately when the effect starts
+    periodicSyncCurrentTrack();
+
     const interval = setInterval(() => {
       lastPeriodicSyncRef.current = Date.now();
       periodicSyncCurrentTrack();
