@@ -437,7 +437,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
     // Active uses a slightly muted brown, Inactive uses a more discreet faded brown
     const knownColorClass = isActive ? "text-[#827367]" : "text-[#827367]/50";
-    const baseColorClass = isActive ? "text-gray-300" : "text-gray-500";
+    const baseColorClass = isActive ? "text-gray-200" : "text-gray-400";
 
     return parts.map((part, i) => {
       const isWord = pattern.test(part);
@@ -1550,7 +1550,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                   }}
                   className={cn(
                     "transition-all active:scale-90 w-14 h-14 sm:w-12 sm:h-12",
-                    hasVideo && showVideo ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                    hasVideo && showVideo ? "text-gray-200 hover:text-white/80" : "text-gray-500 hover:text-gray-200"
                   )}
                   title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
                 >
@@ -1573,7 +1573,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                   onClick={() => setIsEditModeGlobal(!isEditModeGlobal)}
                   className={cn(
                     "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
-                    isEditModeGlobal ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                    isEditModeGlobal ? "text-gray-200 hover:text-white/80" : "text-gray-500 hover:text-gray-200"
                   )}
                   title={isEditModeGlobal ? "Sair da Edição" : "Modo Edição"}
                 >
