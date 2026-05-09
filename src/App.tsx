@@ -836,7 +836,7 @@ export default function App() {
       const { generateLessonSegments: generateSegments, requestTtsAudio: requestTts } = await import("./services/geminiService");
 
       // Generate segments from text
-      const rawSegments = await generateSegments(title, text, nativeLanguage, deepseekApiKey, hasBillingEnabled);
+      const rawSegments = await generateSegments(title, text, nativeLanguage, userApiKey, hasBillingEnabled);
 
       // Convert to TranscriptSegment format with computed timings
       const totalWords = text.trim().split(/\s+/).length;
