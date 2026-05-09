@@ -505,10 +505,10 @@ export function FlashcardsView({
                 <div className="absolute bottom-6 right-6 flex items-center space-x-3">
                   <div className="flex bg-white/5 rounded-full p-1.5 border border-white/10 space-x-1">
                     {[
-                      { id: 'en-US-Neural2-A', label: 'F1' },
-                      { id: 'en-US-Neural2-F', label: 'F2' },
+                      { id: 'en-US-Neural2-F', label: 'F1' },
+                      { id: 'en-US-Neural2-C', label: 'F2' },
                       { id: 'en-US-Neural2-D', label: 'M1' },
-                      { id: 'en-US-Neural2-I', label: 'M2' },
+                      { id: 'en-US-Neural2-A', label: 'M2' },
                     ].map((voice) => (
                       <button
                         key={voice.id}

@@ -12,7 +12,7 @@ interface GerarLicaoModalProps {
 
 const VOICES = [
   { id: "en-US-Neural2-F", label: "F1" },
-  { id: "en-US-Neural2-J", label: "F2" },
+  { id: "en-US-Neural2-C", label: "F2" },
   { id: "en-US-Neural2-D", label: "M1" },
   { id: "en-US-Neural2-A", label: "M2" },
 ];
