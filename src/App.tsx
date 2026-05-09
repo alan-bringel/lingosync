@@ -280,12 +280,25 @@ export default function App() {
 
   const [playlist, setPlaylist] = useState<AudioTrack[]>(INITIAL_PLAYLIST);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+
+  // latestTrackRef sempre tem o estado MAIS RECENTE de cada track.
+  // performSync SEMPRE le deste ref, garantindo que o sync nunca use dados parciais.
+  const latestTrackRef = useRef<Map<string, AudioTrack>>(new Map());
+  const syncLatestToRef = (track: AudioTrack) => {
+    latestTrackRef.current.set(track.id, track);
+  };
+  const syncManyToRef = (tracks: AudioTrack[]) => {
+    for (const t of tracks) {
+      latestTrackRef.current.set(t.id, t);
+    }
+  };
+
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [showFlashcards, setShowFlashcards] = useState(false);
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
-  const dirtyTracksRef = useRef<Map<string, AudioTrack | null>>(new Map());
+  const dirtyTracksRef = useRef<Set<string>>(new Set());
   const syncingTrackIdRef = useRef<string | null>(null);
   const deletedDriveIdsRef = useRef<Set<string>>(new Set(JSON.parse(localStorage.getItem('lingosync_deleted_drive_ids') || '[]')));
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
@@ -309,22 +322,22 @@ export default function App() {
       });
     });
   };
-  const requestSyncImmediate = (trackId: string, trackData?: AudioTrack) => {
+  const requestSyncImmediate = (trackId: string) => {
     if (!isGoogleLoggedIn) return;
 
     if (syncingTrackIdRef.current === trackId) {
-      dirtyTracksRef.current.set(trackId, trackData || null);
+      dirtyTracksRef.current.add(trackId);
       return;
     }
 
-    performSync(trackId, trackData);
+    performSync(trackId);
   };
 
-  const performSync = async (trackId: string, trackData?: AudioTrack) => {
+  const performSync = async (trackId: string) => {
     syncingTrackIdRef.current = trackId;
     dirtyTracksRef.current.delete(trackId);
 
-    const track = trackData || playlist.find(t => t.id === trackId);
+    const track = latestTrackRef.current.get(trackId);
     if (!track) {
       syncingTrackIdRef.current = null;
       return;
@@ -335,9 +348,8 @@ export default function App() {
     syncingTrackIdRef.current = null;
 
     if (dirtyTracksRef.current.has(trackId)) {
-      const pendingData = dirtyTracksRef.current.get(trackId);
       dirtyTracksRef.current.delete(trackId);
-      performSync(trackId, pendingData || undefined);
+      performSync(trackId);
     }
   };
 
@@ -370,12 +382,17 @@ export default function App() {
         syncStatus: 'synced' 
       });
       
-      setPlaylist(prev => prev.map(t => t.id === track.id ? { 
-        ...t, 
-        driveFileId, 
-        driveAudioFileId, 
-        syncStatus: 'synced' as const 
-      } : t));
+      setPlaylist(prev => {
+        const updated = prev.map(t => t.id === track.id ? { 
+          ...t, 
+          driveFileId, 
+          driveAudioFileId, 
+          syncStatus: 'synced' as const 
+        } : t);
+        const synced = updated.find(t => t.id === track.id);
+        if (synced) syncLatestToRef(synced);
+        return updated;
+      });
       return true;
     } catch (error) {
       console.error("Failed to sync to Drive:", error);
@@ -383,7 +400,8 @@ export default function App() {
         const delay = Math.min(1000 * Math.pow(2, retryCount), 15000);
         console.log(`[LingoSync] Retrying sync in ${delay}ms (attempt ${retryCount + 1}/5)...`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        return syncTrackToDrive(track, retryCount + 1);
+        const refreshedTrack = latestTrackRef.current.get(track.id);
+        return syncTrackToDrive(refreshedTrack || track, retryCount + 1);
       } else {
         await updateTrackMetadata(track.id, { syncStatus: 'error' });
         setPlaylist(prev => prev.map(t => t.id === track.id ? { ...t, syncStatus: 'error' } : t));
@@ -416,6 +434,7 @@ export default function App() {
       };
       
       await saveTrack(newTrack, audioBlob);
+      syncLatestToRef(newTrack);
       setPlaylist(prev => prev.map(t => t.id === track.id ? newTrack : t));
       setTimeout(() => evictCacheIfNeeded(), 0);
     } catch (error: any) {
@@ -861,6 +880,7 @@ export default function App() {
 
         if (saved && saved.length > 0) {
           setPlaylist(saved);
+          syncManyToRef(saved);
           await refreshGlobalKnownWords(saved);
         } else {
           setGlobalKnownWords([]);
@@ -951,6 +971,7 @@ export default function App() {
               setPlaylist(prev => {
                 const exists = prev.some(t => t.id === newTrack.id || t.driveFileId === file.id);
                 if (exists) return prev;
+                syncLatestToRef(newTrack);
                 return [...prev, newTrack];
               });
             } catch (err) {
@@ -1006,8 +1027,8 @@ export default function App() {
       updateTrackMetadata(track.id, { knownWords: nextTrackKnown }).catch(console.error);
 
       if (isGoogleLoggedIn) {
-        const updatedTrack = { ...track, knownWords: nextTrackKnown };
-        requestSyncImmediate(track.id, updatedTrack);
+        syncLatestToRef({ ...track, knownWords: nextTrackKnown });
+        requestSyncImmediate(track.id);
       }
 
       return prev.map((item, idx) =>
@@ -1424,8 +1445,8 @@ export default function App() {
       
       // Auto-sync to Drive whenever any track data changes (flashcards, knownWords, transcript, lessonNumber, etc.)
       if (isGoogleLoggedIn) {
-        const freshTrack = { ...currentTrack, ...updatedTrack } as AudioTrack;
-        requestSyncImmediate(trackId, freshTrack);
+        syncLatestToRef({ ...currentTrack, ...updatedTrack } as AudioTrack);
+        requestSyncImmediate(trackId);
       }
     }
     setPlaylist(prev => prev.map((track, i) =>
@@ -1493,7 +1514,8 @@ export default function App() {
       await refreshGlobalKnownWords(updatedPlaylist);
 
       if (isGoogleLoggedIn && track.driveFileId) {
-        requestSyncImmediate(id, missingTrack);
+        syncLatestToRef(missingTrack);
+        requestSyncImmediate(id);
       }
     } else {
       const newPlaylist = playlist.filter(t => t.id !== id);
