@@ -1144,6 +1144,35 @@ export default function App() {
           setTimeout(() => evictCacheIfNeeded(), 100);
         }
       }
+
+      // Update existing tracks with remote metadata (title, lessonNumber, etc.)
+      const trackIdsWithDrive = new Set<string>();
+      for (const file of lsyncFiles) {
+        trackIdsWithDrive.add(file.id);
+      }
+      for (const track of playlist) {
+        if (!track.driveFileId || !trackIdsWithDrive.has(track.driveFileId)) continue;
+        if (!track.syncStatus || track.syncStatus === 'cloud_only') continue;
+        try {
+          const jsonBlob = await googleDriveService.downloadFile(track.driveFileId);
+          const jsonData = JSON.parse(await jsonBlob.text());
+          const remoteTrack = jsonData as AudioTrack;
+          const localUpdates: Record<string, any> = {};
+          if (remoteTrack.title !== undefined && remoteTrack.title !== track.title) localUpdates.title = remoteTrack.title;
+          if (remoteTrack.lessonNumber !== undefined && remoteTrack.lessonNumber !== track.lessonNumber) localUpdates.lessonNumber = remoteTrack.lessonNumber;
+          if (remoteTrack.artist !== undefined && remoteTrack.artist !== track.artist) localUpdates.artist = remoteTrack.artist;
+          if (remoteTrack.coverUrl !== undefined && remoteTrack.coverUrl !== track.coverUrl) localUpdates.coverUrl = remoteTrack.coverUrl;
+          if (remoteTrack.language !== undefined && remoteTrack.language !== track.language) localUpdates.language = remoteTrack.language;
+          if (Object.keys(localUpdates).length > 0) {
+            const updatedTrack = { ...track, ...localUpdates };
+            syncLatestToRef(updatedTrack);
+            await updateTrackMetadata(track.id, localUpdates);
+            setPlaylist(prev => prev.map(t => t.id === track.id ? { ...t, ...localUpdates } : t));
+          }
+        } catch (err) {
+          // Silently skip if download fails (track may not have full JSON on Drive yet)
+        }
+      }
     } catch (err) {
       console.debug("Drive restore check error:", err);
     }
@@ -1220,16 +1249,26 @@ export default function App() {
         }
       }
 
+      // Sync metadata fields from remote (title, lessonNumber, artist, coverUrl, language)
+      const metadataChanged: Record<string, any> = {};
+      const metadataFields: (keyof Pick<AudioTrack, 'title' | 'lessonNumber' | 'artist' | 'coverUrl' | 'language'>)[] = ['title', 'lessonNumber', 'artist', 'coverUrl', 'language'];
+      for (const field of metadataFields) {
+        if (remoteTrack[field] !== undefined && remoteTrack[field] !== track[field]) {
+          metadataChanged[field] = remoteTrack[field];
+          changed = true;
+        }
+      }
+
       if (!changed) return;
 
-      const updatedTrack = { ...track, knownWords: mergedKnown, flashcards: mergedFlashcards };
+      const updatedTrack = { ...track, knownWords: mergedKnown, flashcards: mergedFlashcards, ...metadataChanged };
 
       syncLatestToRef(updatedTrack);
       requestSyncImmediate(track.id);
 
-      await updateTrackMetadata(track.id, { knownWords: mergedKnown, flashcards: mergedFlashcards });
+      await updateTrackMetadata(track.id, { knownWords: mergedKnown, flashcards: mergedFlashcards, ...metadataChanged });
       setPlaylist(prev => {
-        const updated = prev.map(t => t.id === track.id ? { ...t, knownWords: mergedKnown, flashcards: mergedFlashcards } : t);
+        const updated = prev.map(t => t.id === track.id ? { ...t, knownWords: mergedKnown, flashcards: mergedFlashcards, ...metadataChanged } : t);
         refreshGlobalKnownWords(updated);
         return updated;
       });
