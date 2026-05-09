@@ -231,17 +231,10 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
   // Close video drawer if video is removed
   useEffect(() => {
-    if (!hasVideo && showVideo && !ytLoading) {
+    if (!hasVideo && showVideo) {
       setShowVideo(false);
     }
-  }, [hasVideo, showVideo, ytLoading]);
-
-  // Show video drawer when youtubeId is set (e.g. from VideoSourcePrompt)
-  useEffect(() => {
-    if (track.youtubeId && !showVideo) {
-      setShowVideo(true);
-    }
-  }, [track.youtubeId]);
+  }, [hasVideo, showVideo]);
 
   // Reset to beginning on mount (when returning from Library/Home)
   // This won't trigger when returning from Flashcards because AudioPlayer stays mounted.
