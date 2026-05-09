@@ -554,7 +554,18 @@ export function FlashcardsView({
               <div className="absolute inset-0 [transform:rotateY(180deg)] backface-hidden bg-[#1a1a1a] rounded-[2.5rem] border-[1.5px] border-[#827367]/30 p-8 flex flex-col items-center justify-center text-center space-y-6 shadow-2xl">
                 <div className="space-y-2">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#827367]">Tradução</span>
-                  <p className="text-2xl font-bold text-gray-400 italic">{currentCard?.translation || "..."}</p>
+                  <p
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (returnSegmentIndex !== undefined && returnSegmentIndex !== null && onWordClick) {
+                        onWordClick(returnSegmentIndex);
+                      }
+                    }}
+                    className={cn(
+                      "text-2xl font-bold italic",
+                      returnSegmentIndex !== undefined && returnSegmentIndex !== null && onWordClick ? "cursor-pointer text-gray-300 hover:text-white transition-colors" : "text-gray-400"
+                    )}
+                  >{currentCard?.translation || "..."}</p>
                 </div>
                 <div className="w-12 h-[1px] bg-white/5" />
                 <div className="space-y-2 overflow-y-auto max-h-40 px-2 scrollbar-hide">
