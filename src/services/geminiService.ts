@@ -1,20 +1,7 @@
-import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { Flashcard } from "../types";
-import { withRateLimit } from "../lib/rateLimitWrapper";
 import { callDeepSeekChat } from "./deepseekService";
 
-const GEMINI_CORE_MODEL = "gemini-flash-latest";
-const GEMINI_TTS_MODEL = "gemini-3.1-flash-tts-preview";
 // Este projeto evita explicitamente o uso de modelos Gemini 3.1 Pro para reduzir custos.
-
-function getAI(customApiKey?: string) {
-  const apiKey = customApiKey;
-  if (!apiKey) throw new Error("Por favor, insira sua Gemini API Key nas configurações para usar este recurso.");
-  return new GoogleGenAI({ 
-    apiKey,
-    httpOptions: { apiVersion: "v1beta" }
-  });
-}
 
 const LANGUAGE_NAMES: Record<string, string> = {
   en: 'English',
@@ -527,49 +514,28 @@ export async function generateLessonSegments(
   customApiKey?: string,
   hasBillingEnabled?: boolean
 ): Promise<{ text: string, translation: string }[]> {
-  return withRateLimit(
-    {
-      model: GEMINI_CORE_MODEL,
-      apiKey: customApiKey || "",
-      operationName: "Geração de Segmentos",
-      hasBillingEnabled,
-    },
-    async () => {
-      const ai = getAI(customApiKey);
-      const langName = getLanguageName(nativeLanguage);
-      const prompt = `
-    Break the following text into logical segments for a lesson. 
-    Prioritize natural pauses, punctuation, conjunctions, and clauses to make the segments flow well and make sense. 
-    Segments should be a good size for learning—not too short and not excessively long.
-    For each segment, provide the English text and its corresponding ${langName} translation.
-    
-    CRITICAL: Mirror the punctuation of the English text EXACTLY in the ${langName} translation for each segment.
-    
-    Text: "${text}"
-    
-    Return exactly a JSON array of objects. Fields: text, translation.
-  `;
-      
-      const response = await ai.models.generateContent({
-        model: GEMINI_CORE_MODEL,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                text: { type: Type.STRING },
-                translation: { type: Type.STRING },
-              },
-              required: ["text", "translation"],
-            }
-          },
-        },
-      });
-      
-      return JSON.parse(response.text);
-    }
+  const apiKey = customApiKey || localStorage.getItem("deepseek_api_key") || "";
+  if (!apiKey || apiKey.trim() === "") {
+    throw new Error("DeepSeek API Key não configurada.");
+  }
+
+  const langName = getLanguageName(nativeLanguage);
+  const prompt = `Break the following text into logical segments for a lesson.
+Prioritize natural pauses, punctuation, conjunctions, and clauses to make the segments flow well and make sense.
+Segments should be a good size for learning—not too short and not excessively long.
+For each segment, provide the English text and its corresponding ${langName} translation.
+
+CRITICAL: Mirror the punctuation of the English text EXACTLY in the ${langName} translation for each segment.
+
+Text: "${text}"
+
+Return exactly a JSON array of objects. Fields: text, translation.`;
+
+  const resultText = await callDeepSeekChat(
+    [{ role: "user", content: prompt }],
+    apiKey,
+    { type: "json_object" }
   );
+
+  return JSON.parse(resultText);
 }
