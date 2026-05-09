@@ -128,6 +128,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const [isDictionaryModeGlobal, setIsDictionaryModeGlobal] = useState(false);
   const [focusSegmentIndex, setFocusSegmentIndex] = useState(0);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [manuallyHighlightedSegment, setManuallyHighlightedSegment] = useState<number | null>(null);
 
   const getLanguageNameLabel = (code: string) => {
     const names: Record<string, string> = {
@@ -389,17 +390,19 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       if (word && track.flashcards && onOpenFlashcardAtIndex) {
         if (e.detail === 2) {
           // Double-click on word: narrate segment
+          setManuallyHighlightedSegment(null);
           const seg = track.transcript[idx];
           playSegment(seg.start, seg.end, idx);
           return;
         }
-        // Single click on word: open flashcard
+        // Single click on word: open flashcard and highlight segment
         setIsPlaying(false);
         if (track.youtubeId && ytPlayerRef.current && isYtReady) {
           ytPlayerRef.current.pauseVideo?.();
         } else if (audioRef.current) {
           audioRef.current.pause();
         }
+        setManuallyHighlightedSegment(idx);
 
         const lowerSearch = word.toLowerCase().trim();
         let cardIdx = track.flashcards.findIndex(fc =>
@@ -414,6 +417,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         onOpenFlashcardAtIndex(cardIdx !== -1 ? cardIdx : 0, idx);
       } else if (e.detail === 2 && !word) {
         // Double-click on empty space: narrate segment
+        setManuallyHighlightedSegment(null);
         const seg = track.transcript[idx];
         playSegment(seg.start, seg.end, idx);
       }
@@ -421,6 +425,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }
 
     // Normal mode: single click plays segment
+    setManuallyHighlightedSegment(null);
     const segment = track.transcript[idx];
     playSegment(segment.start, segment.end, idx);
   };
@@ -770,6 +775,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         if (isPlaying) {
           ytPlayerRef.current.pauseVideo?.();
         } else {
+          setManuallyHighlightedSegment(null);
           // If starting fresh or from end reset repeats
           if (ytPlayerRef.current.getCurrentTime && ytPlayerRef.current.getCurrentTime() < 0.1) {
             globalRepeatsLeftRef.current = globalRepeat === Infinity ? Infinity : Math.max(0, globalRepeat - 1);
@@ -784,6 +790,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       if (isPlaying) {
         audioRef.current.pause();
       } else {
+        setManuallyHighlightedSegment(null);
         // If starting fresh or from end, reset global repeats
         if (audioRef.current.currentTime < 0.1 || audioRef.current.ended) {
           globalRepeatsLeftRef.current = globalRepeat === Infinity ? Infinity : Math.max(0, globalRepeat - 1);
@@ -915,6 +922,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   }, [externalJumpToSegmentIndex, track.transcript, isDictionaryModeGlobal]);
 
   const playSegment = (start: number, end: number, index: number) => {
+    setManuallyHighlightedSegment(null);
     const repeats = globalRepeat;
     repeatsLeftRef.current = repeats === Infinity ? Infinity : Math.max(0, repeats - 1);
     setActiveSegmentIndex(index);
@@ -999,6 +1007,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
   const isSegmentActive = (segment: TranscriptSegment) => {
     return currentTime >= segment.start && currentTime <= segment.end;
+  };
+
+  // Returns the segment index that should appear active/highlighted
+  // Either because it's being narrated or because user clicked a word in dictionary mode
+  const getActiveSegmentIndex = (segmentIdx: number): boolean => {
+    const segment = track.transcript[segmentIdx];
+    if (currentTime >= segment.start && currentTime <= segment.end) return true;
+    if (manuallyHighlightedSegment === segmentIdx) return true;
+    return false;
   };
 
   return (
@@ -1425,7 +1442,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     <>
                       <div className="flex justify-between items-start group/title pb-1 transition-all duration-300">
                         <div className="text-[1.3rem] sm:text-xl leading-relaxed flex-1">
-                          {renderSegmentText(segment.text, isSegmentActive(segment), sIdx)}
+                          {renderSegmentText(segment.text, getActiveSegmentIndex(sIdx), sIdx)}
                         </div>
                         {isEditModeGlobal && (
                           <button
