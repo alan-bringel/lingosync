@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { Play, Pause, SkipBack, SkipForward, Languages, ChevronDown, ChevronUp, Download, Edit2, Check, X, Settings2, Clock, Sparkles, Infinity as InfinityIcon, Gauge, Repeat, Youtube, Monitor, MonitorOff, RefreshCw, Loader2, Book, Edit3 } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Languages, ChevronDown, ChevronUp, Download, Edit2, Check, X, Settings2, Clock, Sparkles, Infinity as InfinityIcon, Gauge, Repeat, Youtube, Monitor, MonitorOff, RefreshCw, Loader2, Book, Edit3, ChevronLeft, ChevronRight } from "lucide-react";
 
 declare global {
   interface Window {
@@ -126,6 +126,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const [duration, setDuration] = useState(0);
   const [showTranslations, setShowTranslations] = useState<Record<number, boolean>>({});
   const [isDictionaryModeGlobal, setIsDictionaryModeGlobal] = useState(false);
+  const [focusSegmentIndex, setFocusSegmentIndex] = useState(0);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const getLanguageNameLabel = (code: string) => {
@@ -1097,7 +1098,67 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         {/* Transcript Area */}
         <ScrollArea className="flex-1 min-h-0 px-4 sm:px-8 py-4">
           <div className="space-y-2 pb-8">
-            {track.transcript.map((segment, sIdx) => (
+            {isMaximized ? (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={focusSegmentIndex}
+                  id={`segment-${focusSegmentIndex}`}
+                  initial={{ y: 40, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -40, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="group transition-all duration-300 rounded-xl p-3 sm:p-4"
+                >
+                  {(() => {
+                    const segment = track.transcript[focusSegmentIndex];
+                    const sIdx = focusSegmentIndex;
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-start group/title pb-1 transition-all duration-300">
+                          <div className="text-[1.3rem] sm:text-xl leading-relaxed flex-1">
+                            {renderSegmentText(segment.text, isSegmentActive(segment), sIdx)}
+                          </div>
+                        </div>
+                        <div className="flex flex-col space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-1">
+                              <button
+                                onClick={(e) => toggleTranslation(sIdx, e)}
+                                className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
+                                title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
+                              >
+                                {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+                          <AnimatePresence>
+                            {showTranslations[sIdx] && (
+                              <motion.p
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                onClick={() => {
+                                  if (isDictionaryModeGlobal && isMaximized) {
+                                    playSegment(segment.start, segment.end, sIdx);
+                                  }
+                                }}
+                                className={cn(
+                                  "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
+                                  isDictionaryModeGlobal && isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
+                                )}
+                              >
+                                {segment.translation || "(Tradução indisponível para este segmento.)"}
+                              </motion.p>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </motion.div>
+              </AnimatePresence>
+            ) : (
+              track.transcript.map((segment, sIdx) => (
               <motion.div
                 key={sIdx}
                 id={`segment-${sIdx}`}
@@ -1252,13 +1313,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                   )}
                 </div>
               </motion.div>
-            ))}
+            )))}
           </div>
         </ScrollArea>
       </div>
 
       {/* Controls Container */}
-      {!isMaximized && (
       <div className="bg-white/[0.04] relative">
         <div className="px-4 sm:px-8 py-3 sm:py-4 flex flex-col justify-center min-h-[96px] sm:min-h-[112px]">
           {/* Progress bar positioned between the divider and the controls */}
@@ -1296,25 +1356,50 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
               </div>
 
               <div className="flex items-center space-x-6 sm:space-x-8">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onPointerDown={handleVideoTouchStart}
-                  onPointerUp={handleVideoTouchEnd}
-                  onPointerLeave={() => {
-                    if (longPressTimerRef.current) {
-                      clearTimeout(longPressTimerRef.current);
-                      longPressTimerRef.current = null;
-                    }
-                  }}
-                  className={cn(
-                    "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
-                    hasVideo && showVideo ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
-                  )}
-                  title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
-                >
-                  <Youtube className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
-                </Button>
+                {isMaximized ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setFocusSegmentIndex(prev => Math.max(0, prev - 1))}
+                      disabled={focusSegmentIndex === 0}
+                      className="w-12 h-12 sm:w-10 sm:h-10 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+                      title="Segmento anterior"
+                    >
+                      <ChevronLeft className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setFocusSegmentIndex(prev => Math.min(track.transcript.length - 1, prev + 1))}
+                      disabled={focusSegmentIndex === track.transcript.length - 1}
+                      className="w-12 h-12 sm:w-10 sm:h-10 text-gray-500 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+                      title="Próximo segmento"
+                    >
+                      <ChevronRight className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onPointerDown={handleVideoTouchStart}
+                    onPointerUp={handleVideoTouchEnd}
+                    onPointerLeave={() => {
+                      if (longPressTimerRef.current) {
+                        clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }
+                    }}
+                    className={cn(
+                      "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
+                      hasVideo && showVideo ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                    )}
+                    title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
+                  >
+                    <Youtube className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
+                  </Button>
+                )}
                 <Button
                   onClick={togglePlay}
                   size="icon"
@@ -1326,18 +1411,20 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     <Play className="w-8 h-8 sm:w-6 sm:h-6 fill-current ml-1" />
                   )}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsEditModeGlobal(!isEditModeGlobal)}
-                  className={cn(
-                    "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
-                    isEditModeGlobal ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
-                  )}
-                  title={isEditModeGlobal ? "Sair da Edição" : "Modo Edição"}
-                >
-                  <Edit2 className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
-                </Button>
+                {!isMaximized && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsEditModeGlobal(!isEditModeGlobal)}
+                    className={cn(
+                      "transition-all active:scale-90 w-12 h-12 sm:w-10 sm:h-10",
+                      isEditModeGlobal ? "text-white hover:text-white/80" : "text-gray-500 hover:text-gray-200"
+                    )}
+                    title={isEditModeGlobal ? "Sair da Edição" : "Modo Edição"}
+                  >
+                    <Edit2 className="w-8 h-8 sm:w-6 sm:h-6 shrink-0" />
+                  </Button>
+                )}
               </div>
 
               <div className="scale-110 sm:scale-100">
@@ -1353,7 +1440,6 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
           </div>
         </div>
       </div>
-      )}
 
       <audio
         ref={audioRef}
