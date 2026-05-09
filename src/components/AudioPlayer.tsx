@@ -148,6 +148,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const isLongPressRef = useRef(false);
 
   const handleVideoTouchStart = (e: React.PointerEvent) => {
+    if (ytLoading) return;
     isLongPressRef.current = false;
     longPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
@@ -167,6 +168,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       isLongPressRef.current = false;
       return;
     }
+    if (ytLoading) return;
     if (hasVideo && (!track.youtubeId || isYtReady)) {
       setShowVideo(!showVideo);
     } else {
@@ -216,13 +218,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const ytPlayerRef = useRef<any>(null);
   const [isYtReady, setIsYtReady] = useState(false);
   const [ytError, setYtError] = useState(false);
+  const [ytLoading, setYtLoading] = useState(false);
   const isDraggingRef = useRef(false);
 
-  const hasVideo = !!(track.isVideo && ((track.youtubeId && !ytError) || track.localVideoUrl || track.videoFileName));
+  const hasVideo = !!(track.isVideo && ((track.youtubeId && !ytError && !ytLoading) || track.localVideoUrl || track.videoFileName));
 
-  // Reset ytError when switching to a different track
+  // Reset yt states when switching to a different track
   useEffect(() => {
     setYtError(false);
+    setYtLoading(false);
   }, [track.id]);
 
   // Close video drawer if video is removed
@@ -260,6 +264,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
     setYtError(false);
     setIsYtReady(false);
+    setYtLoading(true);
     let destroyed = false;
     const ytContainerId = 'yt-player-element';
 
@@ -272,6 +277,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     const onPlayerReady = (event: any) => {
       if (destroyed) return;
       clearTimeout(readyTimeout);
+      setYtLoading(false);
       setIsYtReady(true);
       setDuration(event.target.getDuration());
     };
@@ -288,6 +294,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
     const onPlayerError = () => {
       if (destroyed) return;
+      setYtLoading(false);
       setYtError(true);
       setIsYtReady(false);
     };
@@ -1608,16 +1615,21 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                     }
                   }}
                   className={cn(
-                    "transition-all active:scale-90 w-14 h-14 sm:w-12 sm:h-12",
+                    "transition-all w-14 h-14 sm:w-12 sm:h-12",
+                    ytLoading ? "text-yellow-500/70 animate-pulse cursor-wait" :
                     hasVideo && (!track.youtubeId || isYtReady) && showVideo ? "text-gray-200 hover:text-white/80" : "text-gray-500 hover:text-gray-200"
                   )}
                   title={
+                    ytLoading ? "Carregando vídeo..." :
                     hasVideo && (!track.youtubeId || isYtReady)
                       ? (showVideo ? "Ocultar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)")
                       : "Sincronizar Vídeo"
                   }
                 >
-                  <Youtube className="w-14 h-14 sm:w-12 sm:h-12 shrink-0" />
+                  <Youtube className={cn(
+                    "w-14 h-14 sm:w-12 sm:h-12 shrink-0",
+                    ytLoading && "opacity-70"
+                  )} />
                 </Button>
                 <Button
                   onClick={togglePlay}
