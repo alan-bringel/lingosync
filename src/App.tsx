@@ -833,12 +833,9 @@ export default function App() {
     setIsTranscribing(true);
     setShowGerarLicaoModal(false);
     try {
-      const { generateLessonSegments: generateSegments, requestTtsAudio: requestTts } = await import("./services/geminiService");
+      const { requestTtsAudio: requestTts } = await import("./services/geminiService");
 
-      // Generate segments from text
-      const rawSegments = await generateSegments(title, text, nativeLanguage, deepseekApiKey, hasBillingEnabled);
-
-      // Generate full audio narration
+      // Generate full audio narration from the input text
       const base64Audio = await requestTts(text, voice);
 
       // Create audio blob from base64
@@ -850,62 +847,12 @@ export default function App() {
       const audioBlob = new Blob([bytes], { type: 'audio/mp3' });
       const audioUrl = URL.createObjectURL(audioBlob);
 
-      // Use AssemblyAI to transcribe the TTS audio for precise word timestamps
-      const { transcribeAudioRawWords } = await import("./services/assemblyAiService");
-      const assemblyResult = await transcribeAudioRawWords(audioBlob, assemblyAiApiKey);
-      const assemblyWords = assemblyResult.words;
-
-      // Count words per DeepSeek segment to map to AssemblyAI word slices
-      const segWordRanges: { start: number; end: number }[] = [];
-      let wordOffset = 0;
-      for (const seg of rawSegments) {
-        const wordCount = seg.text.trim().split(/\s+/).filter(Boolean).length;
-        segWordRanges.push({ start: wordOffset, end: wordOffset + wordCount });
-        wordOffset += wordCount;
-      }
-      const totalSegmentWords = segWordRanges.length > 0 ? segWordRanges[segWordRanges.length - 1].end : 0;
-
-      if (totalSegmentWords !== assemblyWords.length || assemblyWords.length === 0) {
-        throw new Error(
-          `Contagem de palavras não corresponde entre os segmentos (${totalSegmentWords}) e a transcrição do AssemblyAI (${assemblyWords.length}). ` +
-          `Isso pode ocorrer se o TTS gerou um áudio com palavras diferentes do texto original.`
-        );
-      }
-
-      // Build transcript with playback buffers (same approach as audio lessons)
-      const SEGMENT_PREROLL = 2.0;
-      const SEGMENT_POSTROLL = 2.0;
-      const rawTranscript: TranscriptSegment[] = rawSegments.map((seg: { text: string; translation: string }, i: number) => {
-        const range = segWordRanges[i];
-        const segAssemblyWords = assemblyWords.slice(range.start, range.end);
-        const exactStart = segAssemblyWords[0].start / 1000;
-        const exactEnd = segAssemblyWords[segAssemblyWords.length - 1].end / 1000;
-        return {
-          text: seg.text,
-          translation: seg.translation,
-          start: exactStart,
-          end: exactEnd,
-          words: segAssemblyWords.map((w: { text: string; start: number; end: number }) => ({
-            text: w.text,
-            start: w.start / 1000,
-            end: w.end / 1000,
-          })),
-        };
-      });
-
-      // Apply playback buffers while preventing overlaps between adjacent segments
-      let previousEnd = 0;
-      const transcript: TranscriptSegment[] = rawTranscript.map((seg, i) => {
-        const desiredStart = Math.max(seg.start - SEGMENT_PREROLL, previousEnd, 0);
-        const start = desiredStart;
-        const end = Math.max(seg.end - SEGMENT_POSTROLL, start + 0.3);
-        previousEnd = end;
-        return {
-          ...seg,
-          start,
-          end,
-        };
-      });
+      // Same pipeline as audio lessons: AssemblyAI transcribes the TTS audio,
+      // then DeepSeek segments the transcribed text with translations (0.5s buffers via remedySegments)
+      const { transcribeAudio } = await import("./lib/gemini");
+      const transcript = enforceSegmentWordLimit(
+        await transcribeAudio(audioBlob, nativeLanguage, assemblyAiApiKey, deepseekApiKey, hasBillingEnabled)
+      );
 
       const newTrack: AudioTrack = {
         id: Date.now().toString(36) + Math.random().toString(36).substring(2),
@@ -913,7 +860,7 @@ export default function App() {
         artist: "",
         url: audioUrl,
         coverUrl: `https://picsum.photos/seed/${title}/400/400`,
-        transcript: enforceSegmentWordLimit(transcript),
+        transcript: transcript,
         language: currentLanguage
       };
 
