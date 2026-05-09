@@ -1158,7 +1158,7 @@ export default function App() {
 
       await updateTrackMetadata(track.id, { knownWords: mergedKnown });
       setPlaylist(prev => {
-        const updated = prev.map(t => t.id === track.id ? { ...t, knownWords: mergedKnown } : t);
+        const updated = prev.map(t => t.id === track.id ? { ...t, knownWords: mergedKnown, flashcards: updatedTrack.flashcards } : t);
         refreshGlobalKnownWords(updated);
         return updated;
       });

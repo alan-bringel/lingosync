@@ -109,161 +109,178 @@ export function GerarLicaoModal({ isOpen, onClose, onAudioSelected, onTextSubmit
 
             <audio ref={persistentAudioRef} className="hidden" />
 
-            {step === "choose" ? (
-              <div className="p-8 text-center space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-200">Nova Lição</h3>
-                  <button onClick={handleClose} className="text-gray-500 hover:text-gray-300 transition-colors">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <p className="text-base text-gray-400">Escolha como deseja criar sua lição</p>
-
-                <div className="space-y-4">
-                  <button
-                    onClick={handleAudioChoice}
-                    className="w-full p-6 rounded-2xl bg-[#0d0d0d] border border-white/10 hover:border-[#827367]/50 transition-all text-left group"
+            <div className="min-h-[350px]">
+              <AnimatePresence mode="wait">
+                {step === "choose" ? (
+                  <motion.div
+                    key="choose"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="p-8 text-center space-y-6"
                   >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-[#827367]/10 rounded-xl flex items-center justify-center border border-[#827367]/20 group-hover:bg-[#827367]/20 transition-colors">
-                        <Headphones className="w-6 h-6 text-[#827367]" />
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold text-gray-200">Áudio</p>
-                        <p className="text-sm text-gray-500">Transcreva um áudio ou vídeo do seu dispositivo</p>
-                      </div>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-gray-200">Nova Lição</h3>
+                      <button onClick={handleClose} className="text-gray-500 hover:text-gray-300 transition-colors">
+                        <X className="w-5 h-5" />
+                      </button>
                     </div>
-                  </button>
 
-                  <button
-                    onClick={() => setStep("text")}
-                    className="w-full p-6 rounded-2xl bg-[#0d0d0d] border border-white/10 hover:border-[#827367]/50 transition-all text-left group"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-[#827367]/10 rounded-xl flex items-center justify-center border border-[#827367]/20 group-hover:bg-[#827367]/20 transition-colors">
-                        <svg className="w-6 h-6 text-[#827367]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold text-gray-200">Texto</p>
-                        <p className="text-sm text-gray-500">Digite ou cole um texto de até 120 palavras</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
+                    <p className="text-base text-gray-400">Escolha como deseja criar sua lição</p>
 
-                <button
-                  onClick={handleClose}
-                  className="text-base font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            ) : (
-              <div className="p-8 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-200">Nova Lição por Texto</h3>
-                  <button onClick={handleClose} className="text-gray-500 hover:text-gray-300 transition-colors">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold uppercase tracking-widest text-gray-500">Título</label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      placeholder="Ex: Daily Routine"
-                      className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-[#827367]/50 transition-colors text-base"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold uppercase tracking-widest text-gray-500">
-                      Texto ({wordCount}/120 palavras)
-                    </label>
-                    <textarea
-                      value={text}
-                      onChange={e => setText(e.target.value)}
-                      placeholder="Digite ou cole o texto da lição aqui..."
-                      rows={5}
-                      className={`w-full bg-[#0d0d0d] border ${isOverLimit ? 'border-red-500/50' : 'border-white/10'} rounded-xl px-4 py-3 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-[#827367]/50 transition-colors text-base resize-none`}
-                    />
-                    {isOverLimit && (
-                      <p className="text-sm text-red-400">O texto excede o limite de 120 palavras.</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-sm font-bold uppercase tracking-widest text-gray-500">Voz de Narração</label>
-                    <div className="flex gap-3">
-                      {VOICES.map(voice => (
-                        <button
-                          key={voice.id}
-                          onClick={() => {
-                            setSelectedVoice(voice.id);
-                            if (!previewAudios[voice.id]) {
-                              handlePreviewVoice(voice.id);
-                            } else {
-                              playAudio(previewAudios[voice.id]);
-                            }
-                          }}
-                          className={`flex-1 py-3 rounded-xl border transition-all text-center ${
-                            selectedVoice === voice.id
-                              ? "bg-[#827367]/20 border-[#827367] text-gray-200"
-                              : "bg-[#0d0d0d] border-white/10 text-gray-400 hover:border-[#827367]/50 hover:text-gray-300"
-                          }`}
-                        >
-                          <div className="flex items-center justify-center space-x-2">
-                            {isPreviewLoading === voice.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : previewAudios[voice.id] ? (
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                            ) : (
-                              <Play className="w-3.5 h-3.5" />
-                            )}
-                            <span className="font-bold">{voice.label}</span>
+                    <div className="space-y-4">
+                      <button
+                        onClick={handleAudioChoice}
+                        className="w-full p-6 rounded-2xl bg-[#0d0d0d] border border-white/10 hover:border-[#827367]/50 transition-all text-left group"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-[#827367]/10 rounded-xl flex items-center justify-center border border-[#827367]/20 group-hover:bg-[#827367]/20 transition-colors">
+                            <Headphones className="w-6 h-6 text-[#827367]" />
                           </div>
-                        </button>
-                      ))}
+                          <div>
+                            <p className="text-lg font-bold text-gray-200">Áudio</p>
+                            <p className="text-sm text-gray-500">Transcreva um áudio ou vídeo do seu dispositivo</p>
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => setStep("text")}
+                        className="w-full p-6 rounded-2xl bg-[#0d0d0d] border border-white/10 hover:border-[#827367]/50 transition-all text-left group"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-[#827367]/10 rounded-xl flex items-center justify-center border border-[#827367]/20 group-hover:bg-[#827367]/20 transition-colors">
+                            <svg className="w-6 h-6 text-[#827367]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-gray-200">Texto</p>
+                            <p className="text-sm text-gray-500">Digite ou cole um texto de até 120 palavras</p>
+                          </div>
+                        </div>
+                      </button>
                     </div>
 
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <button
-                    onClick={handleGenerate}
-                    disabled={!canGenerate || isSubmitting}
-                    className={`w-full py-3 rounded-xl font-bold uppercase tracking-widest transition-all ${
-                      canGenerate && !isSubmitting
-                        ? "bg-[#827367] hover:bg-[#9a8c80] text-gray-100 shadow-lg shadow-[#827367]/10"
-                        : "bg-white/5 text-gray-600 cursor-not-allowed"
-                    }`}
+                    <button
+                      onClick={handleClose}
+                      className="text-base font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="text"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="p-8 space-y-6"
                   >
-                    {isSubmitting ? (
-                      <span className="flex items-center justify-center space-x-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Gerando...</span>
-                      </span>
-                    ) : (
-                      "Gerar Lição"
-                    )}
-                  </button>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-gray-200">Nova Lição por Texto</h3>
+                      <button onClick={handleClose} className="text-gray-500 hover:text-gray-300 transition-colors">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
 
-                  <button
-                    onClick={() => setStep("choose")}
-                    className="w-full text-base font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors py-2"
-                  >
-                    Voltar
-                  </button>
-                </div>
-              </div>
-            )}
+                    <div className="space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold uppercase tracking-widest text-gray-500">Título</label>
+                        <input
+                          type="text"
+                          value={title}
+                          onChange={e => setTitle(e.target.value)}
+                          placeholder="Ex: Daily Routine"
+                          className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-4 py-3 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-[#827367]/50 transition-colors text-base"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold uppercase tracking-widest text-gray-500">
+                          Texto ({wordCount}/120 palavras)
+                        </label>
+                        <textarea
+                          value={text}
+                          onChange={e => setText(e.target.value)}
+                          placeholder="Digite ou cole o texto da lição aqui..."
+                          rows={5}
+                          className={`w-full bg-[#0d0d0d] border ${isOverLimit ? 'border-red-500/50' : 'border-white/10'} rounded-xl px-4 py-3 text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-[#827367]/50 transition-colors text-base resize-none`}
+                        />
+                        {isOverLimit && (
+                          <p className="text-sm text-red-400">O texto excede o limite de 120 palavras.</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-sm font-bold uppercase tracking-widest text-gray-500">Voz de Narração</label>
+                        <div className="flex gap-3">
+                          {VOICES.map(voice => (
+                            <button
+                              key={voice.id}
+                              onClick={() => {
+                                setSelectedVoice(voice.id);
+                                if (!previewAudios[voice.id]) {
+                                  handlePreviewVoice(voice.id);
+                                } else {
+                                  playAudio(previewAudios[voice.id]);
+                                }
+                              }}
+                              className={`flex-1 py-3 rounded-xl border transition-all text-center ${
+                                selectedVoice === voice.id
+                                  ? "bg-[#827367]/20 border-[#827367] text-gray-200"
+                                  : "bg-[#0d0d0d] border-white/10 text-gray-400 hover:border-[#827367]/50 hover:text-gray-300"
+                              }`}
+                            >
+                              <div className="flex items-center justify-center space-x-2">
+                                {isPreviewLoading === voice.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : previewAudios[voice.id] ? (
+                                  <Play className="w-3.5 h-3.5 fill-current" />
+                                ) : (
+                                  <Play className="w-3.5 h-3.5" />
+                                )}
+                                <span className="font-bold">{voice.label}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <button
+                        onClick={handleGenerate}
+                        disabled={!canGenerate || isSubmitting}
+                        className={`w-full py-3 rounded-xl font-bold uppercase tracking-widest transition-all ${
+                          canGenerate && !isSubmitting
+                            ? "bg-[#827367] hover:bg-[#9a8c80] text-gray-100 shadow-lg shadow-[#827367]/10"
+                            : "bg-white/5 text-gray-600 cursor-not-allowed"
+                        }`}
+                      >
+                        {isSubmitting ? (
+                          <span className="flex items-center justify-center space-x-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Gerando...</span>
+                          </span>
+                        ) : (
+                          "Gerar Lição"
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => setStep("choose")}
+                        className="w-full text-base font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300 transition-colors py-2"
+                      >
+                        Voltar
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </motion.div>
         </motion.div>
       )}
