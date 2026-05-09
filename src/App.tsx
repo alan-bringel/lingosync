@@ -285,6 +285,7 @@ export default function App() {
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  const syncRetryRef = useRef<{ trackId: string; retries: number } | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void } | null>(null);
@@ -317,25 +318,22 @@ export default function App() {
       if (track && isGoogleLoggedIn) {
         syncTrackToDrive(track);
       }
-    }, 3000);
+    }, 500);
   };
 
-  const syncTrackToDrive = async (track: AudioTrack) => {
-    if (!isGoogleLoggedIn) return;
+  const syncTrackToDrive = async (track: AudioTrack, retryCount = 0): Promise<boolean> => {
+    if (!isGoogleLoggedIn) return false;
     setIsSyncing(track.id);
     try {
-      // 1. Prepare lesson JSON (similar to handleExport but without base64 audio)
       const exportData: any = { ...track };
       delete exportData.url;
       delete exportData.localVideoUrl;
       delete exportData.syncStatus;
 
-      // 2. Upload/Update JSON file
       const jsonBlob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
       const jsonFileName = `${track.title}.lsync.json`;
       const driveFileId = await googleDriveService.uploadFile(jsonFileName, jsonBlob, "application/json", track.driveFileId);
 
-      // 3. Upload/Update Audio file if it exists locally
       let driveAudioFileId = track.driveAudioFileId;
       const storedTracks = await get<any[]>('lingosync_tracks') || [];
       const storedTrack = storedTracks.find((t: any) => t.id === track.id);
@@ -346,7 +344,6 @@ export default function App() {
         driveAudioFileId = await googleDriveService.uploadFile(audioFileName, audioBlob, storedTrack.audioType || 'audio/mpeg', track.driveAudioFileId);
       }
 
-      // 4. Update local track with Drive IDs
       const updatedTrack = { 
         ...track, 
         driveFileId, 
@@ -360,10 +357,22 @@ export default function App() {
       });
       
       setPlaylist(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
+      return true;
     } catch (error) {
       console.error("Failed to sync to Drive:", error);
-      await updateTrackMetadata(track.id, { syncStatus: 'error' });
-      setPlaylist(prev => prev.map(t => t.id === track.id ? { ...t, syncStatus: 'error' } : t));
+      if (retryCount < 5) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 15000);
+        console.log(`[LingoSync] Retrying sync in ${delay}ms (attempt ${retryCount + 1}/5)...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        const freshTrack = playlist.find(t => t.id === track.id);
+        if (freshTrack) {
+          return syncTrackToDrive(freshTrack, retryCount + 1);
+        }
+      } else {
+        await updateTrackMetadata(track.id, { syncStatus: 'error' });
+        setPlaylist(prev => prev.map(t => t.id === track.id ? { ...t, syncStatus: 'error' } : t));
+      }
+      return false;
     } finally {
       setIsSyncing(null);
     }
@@ -919,6 +928,10 @@ export default function App() {
 
       updateTrackMetadata(track.id, { knownWords: nextTrackKnown }).catch(console.error);
 
+      if (isGoogleLoggedIn) {
+        debouncedAutoSync(track.id);
+      }
+
       return prev.map((item, idx) =>
         idx === currentTrackIndex ? { ...item, knownWords: nextTrackKnown } : item
       );
@@ -1331,8 +1344,8 @@ export default function App() {
       const { url, localVideoUrl, ...updates } = updatedTrack; // never update transient URLs via metadata
       updateTrackMetadata(trackId, updates);
       
-      // Auto-sync to Drive when transcript or word progress changes
-      if (isGoogleLoggedIn && (updatedTrack.transcript || updatedTrack.knownWords)) {
+      // Auto-sync to Drive whenever any track data changes (flashcards, knownWords, transcript, lessonNumber, etc.)
+      if (isGoogleLoggedIn) {
         debouncedAutoSync(trackId);
       }
     }
