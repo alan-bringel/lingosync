@@ -570,7 +570,10 @@ export function FlashcardsView({
                 <div className="w-12 h-[1px] bg-white/5" />
                 <div className="space-y-2 overflow-y-auto max-h-40 px-2 scrollbar-hide">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-gray-600">Explicação</span>
-                  <p className="text-base text-gray-400 italic leading-relaxed">{currentCard?.explanation || "Sem explicação disponível."}</p>
+                  <p
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-base text-gray-400 italic leading-relaxed"
+                  >{currentCard?.explanation || "Sem explicação disponível."}</p>
                 </div>
               </div>
             </motion.div>
