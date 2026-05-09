@@ -285,7 +285,8 @@ export default function App() {
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
-  const syncRetryRef = useRef<{ trackId: string; retries: number } | null>(null);
+  const dirtyTracksRef = useRef<Set<string>>(new Set());
+  const syncingTrackIdRef = useRef<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void } | null>(null);
@@ -307,18 +308,35 @@ export default function App() {
       });
     });
   };
-  const autoSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestSyncImmediate = (trackId: string) => {
+    if (!isGoogleLoggedIn) return;
 
-  const debouncedAutoSync = (trackId: string) => {
-    if (autoSyncTimerRef.current) {
-      clearTimeout(autoSyncTimerRef.current);
+    if (syncingTrackIdRef.current === trackId) {
+      dirtyTracksRef.current.add(trackId);
+      return;
     }
-    autoSyncTimerRef.current = setTimeout(() => {
-      const track = playlist.find(t => t.id === trackId);
-      if (track && isGoogleLoggedIn) {
-        syncTrackToDrive(track);
-      }
-    }, 500);
+
+    performSync(trackId);
+  };
+
+  const performSync = async (trackId: string) => {
+    syncingTrackIdRef.current = trackId;
+    dirtyTracksRef.current.delete(trackId);
+
+    const track = playlist.find(t => t.id === trackId);
+    if (!track) {
+      syncingTrackIdRef.current = null;
+      return;
+    }
+
+    await syncTrackToDrive(track);
+
+    syncingTrackIdRef.current = null;
+
+    if (dirtyTracksRef.current.has(trackId)) {
+      dirtyTracksRef.current.delete(trackId);
+      performSync(trackId);
+    }
   };
 
   const syncTrackToDrive = async (track: AudioTrack, retryCount = 0): Promise<boolean> => {
@@ -383,18 +401,15 @@ export default function App() {
     setIsSyncing(track.id);
     setDownloadProgress(prev => ({ ...prev, [track.id]: 0 }));
     try {
-      // 1. Download JSON
       const jsonBlob = await googleDriveService.downloadFile(track.driveFileId, (pct) => {
         setDownloadProgress(prev => ({ ...prev, [track.id]: pct }));
       });
       const jsonData = JSON.parse(await jsonBlob.text());
       
-      // 2. Download Audio
       const audioBlob = await googleDriveService.downloadFile(track.driveAudioFileId, (pct) => {
         setDownloadProgress(prev => ({ ...prev, [track.id]: 50 + Math.round(pct / 2) }));
       });
       
-      // 3. Save locally
       const newTrack: AudioTrack = {
         ...jsonData,
         id: track.id,
@@ -405,11 +420,26 @@ export default function App() {
       await saveTrack(newTrack, audioBlob);
       setPlaylist(prev => prev.map(t => t.id === track.id ? newTrack : t));
       setTimeout(() => evictCacheIfNeeded(), 0);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to download from Drive:", error);
-      setPlaylist(prev => prev.map(t =>
-        t.id === track.id ? { ...t, syncStatus: 'error' as const } : t
-      ));
+      const msg = error?.message || String(error) || "";
+      const isNotFound = msg.includes("File not found") || msg.includes("404") || msg.includes("Download failed");
+      if (isNotFound) {
+        await deleteTrack(track.id);
+        setPlaylist(prev => {
+          const next = prev.filter(t => t.id !== track.id);
+          refreshGlobalKnownWords(next);
+          return next;
+        });
+        if (currentTrack?.id === track.id) {
+          setCurrentView('library');
+          setCurrentTrackIndex(0);
+        }
+      } else {
+        setPlaylist(prev => prev.map(t =>
+          t.id === track.id ? { ...t, syncStatus: 'error' as const } : t
+        ));
+      }
     } finally {
       setIsSyncing(null);
       setDownloadProgress(prev => {
@@ -853,10 +883,36 @@ export default function App() {
     try {
       const files = await googleDriveService.listFiles();
       const lsyncFiles = files.filter(f => f.name.endsWith('.lsync.json'));
+      const driveFileIds = new Set(lsyncFiles.map(f => f.id));
+
+      // Clean up stale missing_local/cloud_only tracks that no longer exist on Drive
+      const staleTracks = playlist.filter(t =>
+        (t.syncStatus === 'missing_local' || t.syncStatus === 'cloud_only') &&
+        t.driveFileId &&
+        !driveFileIds.has(t.driveFileId)
+      );
+      if (staleTracks.length > 0) {
+        for (const stale of staleTracks) {
+          await deleteTrack(stale.id);
+        }
+        setPlaylist(prev => {
+          const staleIds = new Set(staleTracks.map(t => t.id));
+          const next = prev.filter(t => !staleIds.has(t.id));
+          refreshGlobalKnownWords(next);
+          return next;
+        });
+        if (staleTracks.some(t => t.id === currentTrack?.id)) {
+          setCurrentView('library');
+          setCurrentTrackIndex(0);
+        }
+      }
+
+      // Restore lessons from Drive that aren't in the local playlist
+      const localDriveIds = playlist
+        .filter(t => t.driveFileId && !staleTracks.some(s => s.id === t.id))
+        .map(t => t.driveFileId)
+        .filter(Boolean);
       
-      if (lsyncFiles.length === 0) return;
-      
-      const localDriveIds = playlist.map(t => t.driveFileId).filter(Boolean);
       const missingFiles = lsyncFiles.filter(f => !localDriveIds.includes(f.id));
       
       if (missingFiles.length > 0) {
@@ -929,7 +985,7 @@ export default function App() {
       updateTrackMetadata(track.id, { knownWords: nextTrackKnown }).catch(console.error);
 
       if (isGoogleLoggedIn) {
-        debouncedAutoSync(track.id);
+        requestSyncImmediate(track.id);
       }
 
       return prev.map((item, idx) =>
@@ -1346,12 +1402,39 @@ export default function App() {
       
       // Auto-sync to Drive whenever any track data changes (flashcards, knownWords, transcript, lessonNumber, etc.)
       if (isGoogleLoggedIn) {
-        debouncedAutoSync(trackId);
+        requestSyncImmediate(trackId);
       }
     }
     setPlaylist(prev => prev.map((track, i) =>
       i === currentTrackIndex ? { ...track, ...updatedTrack } : track
     ));
+  };
+
+  const deleteFromDriveWithRetry = async (track: AudioTrack, retryCount = 0): Promise<boolean> => {
+    const filesToDelete: string[] = [];
+    if (track.driveFileId) filesToDelete.push(track.driveFileId);
+    if (track.driveAudioFileId) filesToDelete.push(track.driveAudioFileId);
+
+    if (filesToDelete.length === 0) return true;
+
+    try {
+      for (const fileId of filesToDelete) {
+        await googleDriveService.deleteFile(fileId);
+      }
+      return true;
+    } catch (error: any) {
+      const isNotFound = error?.message?.includes("File not found") || error?.message?.includes("404");
+      if (isNotFound) {
+        return true;
+      }
+      if (retryCount < 5) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 15000);
+        console.log(`[LingoSync] Retrying Drive delete in ${delay}ms (attempt ${retryCount + 1}/5)...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return deleteFromDriveWithRetry(track, retryCount + 1);
+      }
+      return false;
+    }
   };
 
   const handleDeleteTrack = async (id: string, e: React.MouseEvent, deleteFromDrive: boolean = false) => {
@@ -1367,27 +1450,23 @@ export default function App() {
     );
     if (!confirmed) return;
 
-    // 1. Delete from Drive if requested
-    if (deleteFromDrive && track.driveFileId) {
-      try {
-        await googleDriveService.deleteFile(track.driveFileId);
-        if (track.driveAudioFileId) {
-          await googleDriveService.deleteFile(track.driveAudioFileId);
-        }
-      } catch (error) {
-        console.error("Failed to delete from Drive:", error);
-        alert("Erro ao excluir do Google Drive. A lição será removida apenas localmente.");
+    if (deleteFromDrive && (track.driveFileId || track.driveAudioFileId)) {
+      const driveDeleted = await deleteFromDriveWithRetry(track);
+      if (!driveDeleted) {
+        await showConfirm("Erro", "Não foi possível excluir do Google Drive após várias tentativas. A lição será removida apenas localmente.");
       }
     }
 
-    // 2. Delete locally
     await deleteTrack(id);
-    
-    // If it was synced but only deleted locally, keep it in the playlist but mark as missing_local
+
     if (!deleteFromDrive && track.driveFileId) {
       const updatedPlaylist = playlist.map(t => t.id === id ? { ...t, syncStatus: 'missing_local' as const, url: '' } : t);
       setPlaylist(updatedPlaylist);
       await refreshGlobalKnownWords(updatedPlaylist);
+
+      if (isGoogleLoggedIn && track.driveFileId) {
+        requestSyncImmediate(id);
+      }
     } else {
       const newPlaylist = playlist.filter(t => t.id !== id);
       setPlaylist(newPlaylist);
@@ -1399,7 +1478,7 @@ export default function App() {
       setCurrentTrackIndex(0);
     } else {
       const deletedIdx = playlist.findIndex(t => t.id === id);
-      if (deletedIdx < currentTrackIndex) {
+      if (deletedIdx >= 0 && deletedIdx < currentTrackIndex) {
         setCurrentTrackIndex(prev => prev - 1);
       }
     }
