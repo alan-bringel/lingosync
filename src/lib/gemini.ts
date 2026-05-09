@@ -65,7 +65,7 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
  * Robustly fixes common AI segmentation errors like:
  * 1. Fragments under 5 words (merges them)
  * 2. Word repetitions at boundaries (removes them)
- * 3. Dangling prepositions or broken thoughts
+ * 3. Dangling prepositions or broken thoughts in English AND translation
  */
 function remedySegments(segments: TranscriptSegment[]): TranscriptSegment[] {
   if (segments.length <= 1) return segments;
@@ -79,19 +79,115 @@ function remedySegments(segments: TranscriptSegment[]): TranscriptSegment[] {
     const wordCount = current.text.trim().split(/\s+/).filter(w => w.length > 0).length;
     const isSpecialIsolate = /^(goodbye|hello|so let's get started|amen|thank you|welcome)$/i.test(current.text.trim().replace(/[^a-z]/g, ""));
     
-    // Rule: NO 1-WORD SEGMENTS in the middle of a lesson.
+    // Rule: NO Small segments in the middle of a lesson.
     let shouldMerge = (wordCount < 4 || (wordCount === 1 && !isLastSegment)) && !isSpecialIsolate; 
     
-    if (result.length > 0) {
+    if (result.length > 0 && !shouldMerge) {
       const prev = result[result.length - 1];
       const prevText = prev.text.trim().toLowerCase();
       const currText = current.text.trim().toLowerCase();
+      const prevTrans = (prev.translation || "").trim().toLowerCase();
+      const currTrans = (current.translation || "").trim().toLowerCase();
       
-      // Forced semantic glue for connectors
-      if (prevText.endsWith(" leads") || prevText.endsWith(" book is") || prevText.endsWith(" type of") || prevText.endsWith(" is") || prevText.endsWith(" while") || prevText.endsWith(" the") || prevText.endsWith(" a")) {
-        shouldMerge = true;
-      }
-      if (currText.startsWith("to ") || currText.startsWith("as ") || currText.startsWith("another") || currText.startsWith("and ")) {
+      // ─── English dangling-end patterns ───
+      // Words that should NOT normally be the last word of a segment
+      const engLastWord = prevText.split(/\s+/).filter(w => w.length > 0).pop() || "";
+      
+      const englishDanglingEnd = new Set([
+        // Prepositions (strong signal of bad break)
+        "in", "on", "at", "to", "for", "with", "by", "from", "of", "about",
+        "into", "through", "during", "before", "after", "above", "below",
+        "between", "under", "without", "against", "within", "along", "across",
+        "behind", "beyond", "around", "upon", "onto", "toward", "towards",
+        "via", "since", "until", "beside", "besides", "among", "amid",
+        // Articles
+        "a", "an", "the",
+        // Subordinating conjunctions that suggest continuation
+        "that", "which", "because", "while", "although", "though", "unless",
+        "if", "when", "where", "whether",
+        // Auxiliary verbs (dangling - need complement)
+        "is", "are", "was", "were", "has", "have", "had",
+        "does", "do", "did", "will", "would", "shall", "should",
+        "can", "could", "may", "might", "must",
+        "leads",
+      ]);
+      
+      const endsWithDanglingEnglish = englishDanglingEnd.has(engLastWord);
+      
+      // ─── English continuation-start patterns ───
+      const englishContinuationStart = [
+        "to ", "the ", "a ", "an ",
+        "and ", "but ", "or ", "so ", "because ",
+        "that ", "which ", "in ", "on ", "at ", "for ", "with ", "by ", "from ",
+        "of ", "about ", "is ", "are ", "was ", "were ", "has ", "have ",
+        "it ", "he ", "she ", "they ", "we ", "you ", "this ", "that ",
+        "as ", "if ", "when ", "while ", "although ",
+        "another ", "some ", "any ", "each ", "every ",
+        "into ", "through ", "during ", "without ",
+      ];
+      
+      const startsWithContinuationEnglish = englishContinuationStart.some(prefix => currText.startsWith(prefix));
+      
+      // ─── Portuguese dangling-end patterns ───
+      const porLastWord = prevTrans.split(/\s+/).filter(w => w.length > 0).pop() || "";
+      
+      const portugueseDanglingEnd = new Set([
+        // Articles
+        "o", "a", "os", "as", "um", "uma", "uns", "umas",
+        // Prepositions and contractions
+        "de", "da", "do", "das", "dos", "dum", "duma",
+        "em", "no", "na", "nos", "nas", "num", "numa",
+        "por", "para", "com", "sem", "sob", "sobre", "entre", "após",
+        "até", "contra", "perante", "trás", "desde",
+        // Conjunctions
+        "que", "mas", "porque", "pois", "como", "se", "embora",
+        // Relative pronouns
+        "cujo", "cuja", "cujos", "cujas",
+        // Verb forms that need completion
+        "leva", "levam", "levar", "faz", "fazem", "fazer",
+        "tem", "têm", "ter", "é", "são", "era", "eram", "foi", "foram",
+        "será", "serão", "seja", "sejam",
+        // Prepositional phrase starters
+        "forma", "maneira", "modo",
+        // Quantifiers
+        "cada", "algum", "alguma", "alguns", "algumas",
+        "nenhum", "nenhuma", "todo", "toda", "todos", "todas",
+        "muito", "muita", "muitos", "muitas", "pouco", "pouca",
+        "vários", "várias",
+        // Contractions
+        "deste", "desta", "destes", "destas",
+        "nesse", "nessa", "nesses", "nessas", "neste", "nesta",
+        "desse", "dessa", "desses", "dessas",
+        "daquele", "daquela", "daqueles", "daquelas",
+        "naquele", "naquela", "naqueles", "naquelas",
+        "àquele", "àquela", "àqueles", "àquelas",
+        "noutro", "noutra", "noutros", "noutras",
+      ]);
+      
+      const endsWithDanglingPortuguese = portugueseDanglingEnd.has(porLastWord);
+      
+      // ─── Portuguese continuation-start patterns ───
+      const portugueseContinuationStart = [
+        "que ", "e ", "mas ", "porque ", "pois ", "como ", "se ",
+        "o ", "a ", "os ", "as ", "um ", "uma ",
+        "de ", "da ", "do ", "das ", "dos ",
+        "em ", "no ", "na ", "nos ", "nas ",
+        "para ", "com ", "por ", "sem ", "sob ", "sobre ",
+        "é ", "são ", "era ", "foi ", "será ",
+        "ele ", "ela ", "eles ", "elas ", "você ", "nós ",
+        "isto ", "isso ", "aquele ", "aquela ",
+        "também ", "ainda ", "já ", "só ", "apenas ",
+        "leva ", "faz ", "tem ",
+        "há ", "existe ", "existem ",
+        "este ", "esta ", "esse ", "essa ",
+        "forma ", "maneira ", "modo ",
+      ];
+      
+      const startsWithContinuationPortuguese = portugueseContinuationStart.some(prefix => currTrans.startsWith(prefix));
+      
+      // Merge if ANY indicator suggests a broken segment boundary
+      if (endsWithDanglingEnglish || endsWithDanglingPortuguese || 
+          startsWithContinuationEnglish || startsWithContinuationPortuguese) {
         shouldMerge = true;
       }
     }
@@ -212,20 +308,28 @@ export async function translateAndFormatWithDeepSeek(
 You must be as intelligent and context-aware as Gemini 1.5 Flash.
 
 ### CRITICAL RULES (TOTAL FIDELITY & SEMANTIC ALIGNMENT):
-1. 100% WORD COVERAGE: Use EVERY word from the input exactly once.
-2. NO CROSSING RULE: A translated word MUST stay with its English source. If ${langName} requires an inverted word order (e.g., "simple way" -> "forma simples"), DO NOT split them. MOVE the English word to the next segment if necessary.
-3. NATURAL ${langName.toUpperCase()}: Prioritize idiomatic, native-sounding ${langName}.
-4. ADJUST ENGLISH BREAKS: You have full authority to move English words between segments to ensure the translation is not split.
-5. SIZE LIMITS: 4 to 15 words per segment.
-6. FIX TRANSCRIPTION ERRORS: AssemblyAI sometimes mishears words (e.g., "the" instead of "that", "it's" instead of "its", "to" instead of "too"). If a word is contextually illogical but phonetically similar to a correct word, you MUST fix the English text in your output to ensure the lesson makes sense.
+1. **100% WORD COVERAGE**: Use EVERY word from the input exactly once.
+2. **NO CROSSING RULE (MANDATORY)**: A translated word MUST stay with its English source in the SAME segment pair. If ${langName} requires an inverted word order (e.g., "simple way" → "forma simples"), DO NOT split them. MOVE the English words to the next segment if necessary, OR keep them together in the current segment.
+3. **NATURAL ${langName.toUpperCase()}**: Prioritize idiomatic, native-sounding ${langName}.
+4. **ADJUST ENGLISH BREAKS**: You have full authority to move English words between segments to ensure the translation is not split.
+5. **SIZE LIMITS**: 4 to 15 words per segment.
+6. **FIX TRANSCRIPTION ERRORS**: AssemblyAI sometimes mishears words (e.g., "the" instead of "that", "it's" instead of "its", "to" instead of "too"). If a word is contextually illogical but phonetically similar to a correct word, you MUST fix the English text in your output to ensure the lesson makes sense.
 
-### EXAMPLE OF PREVENTING LEAKS:
-- Bad Break: 
-  - Seg 1: "truth spoken in a simple" -> "verdade dita de forma" (WRONG: "simples" is missing)
-  - Seg 2: "way can reach every heart." -> "simples pode alcançar cada coração." (WRONG: "simples" belongs to "simple" in the previous block)
-- Correct Break:
-  - Seg 1: "truth spoken in a" -> "verdade dita de uma forma"
-  - Seg 2: "simple way can reach every heart." -> "simples que pode alcançar cada coração."
+### ⚠️ NEVER DO THIS (WORD CROSSING VIOLATION):
+- Seg 1 English: "truth spoken in a simple" → Seg 1 ${langName}: "verdade dita de forma" ❌
+- Seg 2 English: "way can reach every heart." → Seg 2 ${langName}: "simples pode alcançar cada coração." ❌
+- **PROBLEM**: "simples" (translation of "simple") is in Seg 2, but "simple" is in Seg 1. The words crossed segments!
+
+### ✅ ALWAYS DO THIS (Option A — keep phrase together in Seg 1):
+- Seg 1 English: "truth spoken in a simple way" → Seg 1 ${langName}: "verdade dita de forma simples" ✅
+- Seg 2 English: "can reach every heart." → Seg 2 ${langName}: "pode alcançar cada coração." ✅
+
+### ✅ ALWAYS DO THIS (Option B — keep phrase together in Seg 2):
+- Seg 1 English: "truth spoken" → Seg 1 ${langName}: "verdade dita" ✅
+- Seg 2 English: "in a simple way can reach every heart." → Seg 2 ${langName}: "de forma simples pode alcançar cada coração." ✅
+
+### KEY INSIGHT: 
+Every word in the English segment and EVERY word in the ${langName} segment must be a DIRECT 1:1 match. If a ${langName} phrase translates an English phrase, BOTH must be in the SAME segment. Adjust the English boundary to make this work.
 
 ### EXAMPLE OF PERFECT ALIGNMENT:
 - Input: "...and see how the Bible is divinely inspired literature that leads us to Jesus."
