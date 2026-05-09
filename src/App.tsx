@@ -873,8 +873,8 @@ export default function App() {
       }
 
       // Build transcript with playback buffers (same approach as audio lessons)
-      const SEGMENT_PREROLL = 0.5;
-      const SEGMENT_POSTROLL = 0.5;
+      const SEGMENT_PREROLL = 1.0;
+      const SEGMENT_POSTROLL = 1.0;
       const rawTranscript: TranscriptSegment[] = rawSegments.map((seg: { text: string; translation: string }, i: number) => {
         const range = segWordRanges[i];
         const segAssemblyWords = assemblyWords.slice(range.start, range.end);
