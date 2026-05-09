@@ -77,10 +77,10 @@ export function VideoSyncModal({ isOpen, onClose, onContinue, onRemove, isProces
               </div>
               <div className="space-y-2">
                 <p className="text-base text-gray-300 leading-relaxed font-medium">
-                  Esta etapa é <b>opcional</b>. Adicione um vídeo apenas se desejar sincronizar o áudio da sua lição com o conteúdo visual original.
+                  Adicione um vídeo para complementar o conteúdo da sua lição com a referência visual original.
                 </p>
                 <p className="text-base text-gray-400 leading-relaxed italic">
-                  O vídeo local (offline) é processado apenas no seu dispositivo, sem pesar no arquivo de exportação.
+                  O vídeo local (offline) é processado apenas no seu dispositivo, sem pesar no arquivo de sincronização.
                 </p>
               </div>
             </div>

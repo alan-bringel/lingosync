@@ -1568,8 +1568,17 @@ export default function App() {
         language: currentLanguage
       };
 
+      if (isVideo) {
+        newTrack.localVideoUrl = newTrack.url;
+        newTrack.videoFileName = file.name;
+      }
+
       // Save to persistence
       await saveTrack(newTrack, file);
+
+      if (isVideo) {
+        await saveTrackVideo(newTrack.id, file);
+      }
 
       setPlaylist((prev) => {
         const newList = [...prev, newTrack];
