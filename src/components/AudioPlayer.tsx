@@ -422,7 +422,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
     // Active uses a slightly muted brown, Inactive uses a more discreet faded brown
     const knownColorClass = isActive ? "text-[#827367]" : "text-[#827367]/50";
-    const baseColorClass = isActive ? "text-gray-300" : "text-gray-500";
+    const baseColorClass = isActive ? "text-gray-400" : "text-gray-500";
 
     return parts.map((part, i) => {
       const isWord = pattern.test(part);
@@ -1172,11 +1172,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
             <div className="flex items-center justify-center gap-6 sm:gap-8 pb-4 shrink-0">
               <button
                 onClick={() => setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length)}
-                className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
+                className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
                 title="Segmento anterior"
               >
-                <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 4 L6 12 L18 20 Z" fill="currentColor" />
+                <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-9 sm:h-9 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 4 L6 12 L18 20 Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
                 </svg>
               </button>
               <span className="text-sm font-mono text-gray-500 select-none">
@@ -1184,11 +1184,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
               </span>
               <button
                 onClick={() => setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length)}
-                className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
+                className="shrink-0 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
                 title="Próximo segmento"
               >
-                <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 4 L18 12 L6 20 Z" fill="currentColor" />
+                <svg viewBox="0 0 24 24" className="w-8 h-8 sm:w-9 sm:h-9 shrink-0" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 4 L18 12 L6 20 Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
                 </svg>
               </button>
             </div>
@@ -1517,7 +1517,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                   )}
                   title={hasVideo ? (showVideo ? "Mostrar vídeo (segure para sincronizar)" : "Mostrar vídeo (segure para sincronizar)") : "Sincronizar Vídeo"}
                 >
-                  <Youtube className="w-10 h-10 sm:w-8 sm:h-8 shrink-0" />
+                  <Youtube className="w-12 h-12 sm:w-10 sm:h-10 shrink-0" />
                 </Button>
                 <Button
                   onClick={togglePlay}
