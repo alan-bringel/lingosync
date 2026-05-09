@@ -1103,112 +1103,20 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
           <div className="flex-1 min-h-0 px-4 sm:px-8 py-4 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="w-full max-w-4xl mx-auto px-6 sm:px-10 py-4">
-                <div className="min-w-0">
+                <div className="min-w-0" key={focusSegmentIndex}>
                   {(() => {
                     const segment = track.transcript[focusSegmentIndex];
                     const sIdx = focusSegmentIndex;
-                    if (editingIndex === sIdx) {
-                      return (
-                        <div className="space-y-4 relative z-50 bg-[#0d0d0d]" onClick={e => e.stopPropagation()}>
-                          <div className="space-y-3 border-b-[1.5px] border-white/10 pb-4">
-                            <div className="flex justify-between items-center px-1">
-                              <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500 flex items-center">
-                                <Clock className="w-4 h-4 mr-2" /> Intervalo de Tempo
-                              </label>
-                              <span className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">
-                                {formatTimeFull(editData.start)} — {formatTimeFull(editData.end)}
-                              </span>
-                            </div>
-                            <Slider
-                              value={[editData.start, editData.end]}
-                              min={editSliderBounds.min}
-                              max={Math.min(duration || editSliderBounds.max, editSliderBounds.max)}
-                              step={0.1}
-                              onValueChange={(vals) => setEditData(prev => ({ ...prev, start: vals[0], end: vals[1] }))}
-                              className="py-4"
-                              indicatorClassName="bg-[#827367]/80"
-                              thumbClassName="bg-white"
-                            />
-                          </div>
-
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="secondary"
-                              size="default"
-                              onClick={handlePreviewEdit}
-                              className="flex-1 bg-white/5 hover:bg-white/10 text-gray-300 text-[11px] font-bold uppercase tracking-widest h-12 border border-white/5"
-                            >
-                              <Play className="w-4 h-4 mr-2 fill-current text-[#827367]" /> Preview
-                            </Button>
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Texto em Inglês</label>
-                            <Textarea
-                              value={editData.text}
-                              onChange={e => setEditData(prev => ({ ...prev, text: e.target.value }))}
-                              onKeyDown={e => handleKeyDown(e, sIdx)}
-                              className="bg-white/[0.02] border-[1.5px] border-white/10 text-gray-300 text-lg min-h-[100px]"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Tradução em {getLanguageNameLabel(nativeLanguage)}</label>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={isSyncingTranslation !== null}
-                                onClick={(e) => handleSmartSync(sIdx, e)}
-                                className="flex items-center justify-center h-8 px-3 text-[10px] text-[#827367] hover:text-[#9a8c80] hover:bg-[#827367]/10 font-bold uppercase tracking-tighter whitespace-nowrap min-w-[120px]"
-                              >
-                                <div className="flex items-center gap-1.5">
-                                  {isSyncingTranslation === sIdx ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                                  ) : (
-                                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                                  )}
-                                  <span>{isSyncingTranslation === sIdx ? "Ajustando..." : "Ajustar Tradução"}</span>
-                                </div>
-                              </Button>
-                            </div>
-                            <Textarea
-                              value={editData.translation}
-                              onChange={e => setEditData(prev => ({ ...prev, translation: e.target.value }))}
-                              className="bg-white/[0.02] border-[1.5px] border-white/10 text-gray-400 text-base"
-                            />
-                          </div>
-                          <div className="flex items-center space-x-3 pt-4 w-full">
-                            <Button
-                              size="default"
-                              onClick={(e) => handleSaveEdit(sIdx, e)}
-                              disabled={isSyncingTranslation === sIdx}
-                              className="flex-1 bg-[#827367]/90 hover:bg-[#827367] text-gray-200 text-[11px] font-bold uppercase tracking-widest h-12 border-[1.5px] border-white/10 disabled:opacity-50"
-                            >
-                              <Check className="w-4 h-4 mr-2" /> Salvar
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="default"
-                              onClick={handleCancelEdit}
-                              disabled={isSyncingTranslation === sIdx}
-                              className="flex-1 text-gray-500 hover:text-gray-300 text-[11px] font-bold uppercase tracking-widest h-12 border-[1.5px] border-white/10 disabled:opacity-50"
-                            >
-                              <X className="w-4 h-4 mr-2" /> Cancelar
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    }
                     return (
                       <div className="space-y-2">
-                        <div className="flex justify-between items-start group/title pb-1 transition-all duration-300">
+                        <div className="flex justify-between items-start group/title pb-1">
                           <div className="text-[1.3rem] sm:text-xl leading-relaxed flex-1">
                             {renderSegmentText(segment.text, true, sIdx)}
                           </div>
                           {isEditModeGlobal && (
                             <button
                               onClick={(e) => handleStartEdit(sIdx, e)}
-                              className="p-3 text-gray-700 hover:text-[#827367] transition-all ml-2"
+                              className="p-3 text-gray-700 hover:text-[#827367] ml-2"
                               title="Edit segment"
                             >
                               <Edit2 className="w-4 h-4" />
@@ -1220,33 +1128,28 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                             <div className="flex items-center space-x-1">
                               <button
                                 onClick={(e) => toggleTranslation(sIdx, e)}
-                                className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
+                                className="flex items-center text-[#827367] hover:text-[#9a8c80] w-fit p-2 hover:bg-[#827367]/5 rounded-full"
                                 title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
                               >
                                 {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                               </button>
                             </div>
                           </div>
-                          <AnimatePresence>
-                            {showTranslations[sIdx] && (
-                              <motion.p
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                onClick={() => {
-                                  if (isMaximized) {
-                                    playSegment(segment.start, segment.end, sIdx);
-                                  }
-                                }}
-                                className={cn(
-                                  "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
-                                  isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
-                                )}
-                              >
-                                {segment.translation || "(Tradução indisponível para este segmento.)"}
-                              </motion.p>
-                            )}
-                          </AnimatePresence>
+                          {showTranslations[sIdx] && (
+                            <p
+                              onClick={() => {
+                                if (isMaximized) {
+                                  playSegment(segment.start, segment.end, sIdx);
+                                }
+                              }}
+                              className={cn(
+                                "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed",
+                                isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
+                              )}
+                            >
+                              {segment.translation || "(Tradução indisponível para este segmento.)"}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );
@@ -1257,7 +1160,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
             <div className="flex items-center justify-center gap-6 sm:gap-8 pb-4 shrink-0">
               <button
                 onClick={() => setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length)}
-                className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 transition-all active:scale-90 hover:bg-white/5 rounded-xl"
+                className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
                 title="Segmento anterior"
               >
                 <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
@@ -1269,7 +1172,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
               </span>
               <button
                 onClick={() => setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length)}
-                className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 transition-all active:scale-90 hover:bg-white/5 rounded-xl"
+                className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
                 title="Próximo segmento"
               >
                 <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" xmlns="http://www.w3.org/2000/svg">
@@ -1277,6 +1180,111 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 </svg>
               </button>
             </div>
+
+            {/* Editor Overlay - fica acima de tudo no modo foco */}
+            {editingIndex !== null && editingIndex === focusSegmentIndex && (
+              <div className="fixed inset-0 z-[999] flex items-start justify-center pt-12 sm:pt-20" onClick={handleCancelEdit}>
+                <div
+                  className="bg-[#0d0d0d] border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 sm:p-8 max-h-[85vh] overflow-y-auto"
+                  onClick={e => e.stopPropagation()}
+                >
+                  {(() => {
+                    const segment = track.transcript[focusSegmentIndex];
+                    const sIdx = focusSegmentIndex;
+                    return (
+                      <div className="space-y-4">
+                        <div className="space-y-3 border-b-[1.5px] border-white/10 pb-4">
+                          <div className="flex justify-between items-center px-1">
+                            <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500 flex items-center">
+                              <Clock className="w-4 h-4 mr-2" /> Intervalo de Tempo
+                            </label>
+                            <span className="text-[11px] font-mono text-gray-400 uppercase tracking-widest">
+                              {formatTimeFull(editData.start)} — {formatTimeFull(editData.end)}
+                            </span>
+                          </div>
+                          <Slider
+                            value={[editData.start, editData.end]}
+                            min={editSliderBounds.min}
+                            max={Math.min(duration || editSliderBounds.max, editSliderBounds.max)}
+                            step={0.1}
+                            onValueChange={(vals) => setEditData(prev => ({ ...prev, start: vals[0], end: vals[1] }))}
+                            className="py-4"
+                            indicatorClassName="bg-[#827367]/80"
+                            thumbClassName="bg-white"
+                          />
+                        </div>
+
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="secondary"
+                            size="default"
+                            onClick={handlePreviewEdit}
+                            className="flex-1 bg-white/5 hover:bg-white/10 text-gray-300 text-[11px] font-bold uppercase tracking-widest h-12 border border-white/5"
+                          >
+                            <Play className="w-4 h-4 mr-2 fill-current text-[#827367]" /> Preview
+                          </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Texto em Inglês</label>
+                          <Textarea
+                            value={editData.text}
+                            onChange={e => setEditData(prev => ({ ...prev, text: e.target.value }))}
+                            onKeyDown={e => handleKeyDown(e, sIdx)}
+                            className="bg-white/[0.02] border-[1.5px] border-white/10 text-gray-300 text-lg min-h-[100px]"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Tradução em {getLanguageNameLabel(nativeLanguage)}</label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={isSyncingTranslation !== null}
+                              onClick={(e) => handleSmartSync(sIdx, e)}
+                              className="flex items-center justify-center h-8 px-3 text-[10px] text-[#827367] hover:text-[#9a8c80] hover:bg-[#827367]/10 font-bold uppercase tracking-tighter whitespace-nowrap min-w-[120px]"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                {isSyncingTranslation === sIdx ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                                ) : (
+                                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                                )}
+                                <span>{isSyncingTranslation === sIdx ? "Ajustando..." : "Ajustar Tradução"}</span>
+                              </div>
+                            </Button>
+                          </div>
+                          <Textarea
+                            value={editData.translation}
+                            onChange={e => setEditData(prev => ({ ...prev, translation: e.target.value }))}
+                            className="bg-white/[0.02] border-[1.5px] border-white/10 text-gray-400 text-base"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-3 pt-4 w-full">
+                          <Button
+                            size="default"
+                            onClick={(e) => handleSaveEdit(sIdx, e)}
+                            disabled={isSyncingTranslation === sIdx}
+                            className="flex-1 bg-[#827367]/90 hover:bg-[#827367] text-gray-200 text-[11px] font-bold uppercase tracking-widest h-12 border-[1.5px] border-white/10 disabled:opacity-50"
+                          >
+                            <Check className="w-4 h-4 mr-2" /> Salvar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="default"
+                            onClick={handleCancelEdit}
+                            disabled={isSyncingTranslation === sIdx}
+                            className="flex-1 text-gray-500 hover:text-gray-300 text-[11px] font-bold uppercase tracking-widest h-12 border-[1.5px] border-white/10 disabled:opacity-50"
+                          >
+                            <X className="w-4 h-4 mr-2" /> Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <ScrollArea className="flex-1 min-h-0 px-4 sm:px-8 py-4">
