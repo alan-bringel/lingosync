@@ -835,7 +835,7 @@ export default function App() {
   const [showGerarLicaoModal, setShowGerarLicaoModal] = useState(false);
   const [showVideoSourcePrompt, setShowVideoSourcePrompt] = useState(false);
   const [pendingVideoSourceFile, setPendingVideoSourceFile] = useState<{ file: File; isVideo: boolean } | null>(null);
-  const pendingFileResolveRef = useRef<((value: { youtubeUrl?: string } | null) => void) | null>(null);
+  const pendingFileResolveRef = useRef<((value: { cancelled: boolean; youtubeUrl?: string }) => void) | null>(null);
   const [isSyncingVideo, setIsSyncingVideo] = useState(false);
   const [showMissingAudioModal, setShowMissingAudioModal] = useState(false);
   const [isSyncingAudio, setIsSyncingAudio] = useState(false);
@@ -1755,7 +1755,7 @@ export default function App() {
   const handleVideoSourceContinue = (youtubeUrl?: string) => {
     setShowVideoSourcePrompt(false);
     if (pendingFileResolveRef.current) {
-      pendingFileResolveRef.current({ youtubeUrl });
+      pendingFileResolveRef.current({ cancelled: false, youtubeUrl: youtubeUrl || undefined });
       pendingFileResolveRef.current = null;
     }
   };
@@ -1763,7 +1763,7 @@ export default function App() {
   const handleVideoSourceClose = () => {
     setShowVideoSourcePrompt(false);
     if (pendingFileResolveRef.current) {
-      pendingFileResolveRef.current(null);
+      pendingFileResolveRef.current({ cancelled: true });
       pendingFileResolveRef.current = null;
     }
   };
@@ -1786,13 +1786,18 @@ export default function App() {
 
     const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'mkv'].includes(file.name.split('.').pop()?.toLowerCase() || '');
 
-    const youtubeUrl = await new Promise<string | undefined>((resolve) => {
+    const result = await new Promise<{ cancelled: boolean; youtubeUrl?: string }>((resolve) => {
       setPendingVideoSourceFile({ file, isVideo });
-      pendingFileResolveRef.current = (value) => {
-        resolve(value?.youtubeUrl);
-      };
+      pendingFileResolveRef.current = resolve;
       setShowVideoSourcePrompt(true);
     });
+
+    if (result.cancelled) {
+      e.target.value = '';
+      return;
+    }
+
+    const youtubeUrl = result.youtubeUrl;
 
     let youtubeId: string | undefined;
     if (youtubeUrl) {
