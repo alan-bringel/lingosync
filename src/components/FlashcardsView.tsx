@@ -47,7 +47,7 @@ export function FlashcardsView({
     return Math.min(Math.max(0, Math.floor(startIdx)), flashcards.length - 1);
   });
   const [direction, setDirection] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(returnSegmentIndex !== null && returnSegmentIndex !== undefined);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<string>(() => {
@@ -68,13 +68,6 @@ export function FlashcardsView({
       setCurrentIndex(Math.min(Math.max(0, Math.floor(startIdx)), flashcards.length - 1));
     }
   }, [initialIndex, flashcards.length]);
-
-  // Abre o flashcard já virado se veio do dicionário (clique em palavra na transcrição)
-  useEffect(() => {
-    if (returnSegmentIndex !== null && returnSegmentIndex !== undefined) {
-      setIsFlipped(true);
-    }
-  }, [returnSegmentIndex]);
 
   const variants = {
     enter: (dir: number) => ({ x: dir > 0 ? '100%' : '-100%' }),
