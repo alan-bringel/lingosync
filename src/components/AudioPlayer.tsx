@@ -1192,7 +1192,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                                 }
                               }}
                               className={cn(
-                                "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed",
+                                "text-lg sm:text-base text-gray-500 italic font-serif leading-relaxed",
                                 isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
                               )}
                             >
@@ -1480,7 +1480,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                                 }
                               }}
                               className={cn(
-                                "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
+                                "text-lg sm:text-base text-gray-500 italic font-serif leading-relaxed overflow-hidden",
                                 isDictionaryModeGlobal && "cursor-pointer hover:text-gray-200 transition-colors"
                               )}
                             >

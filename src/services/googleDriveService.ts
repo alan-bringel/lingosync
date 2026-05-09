@@ -128,6 +128,15 @@ class GoogleDriveService {
   async trySilentLogin() {
     if (!this.accessToken) return false;
     if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
+      // Token expired — try silent refresh before logging out
+      const refreshed = await this.refreshTokenSilently();
+      if (refreshed) {
+        const userInfo = await this.getUserInfo();
+        if (userInfo) {
+          this._userInfo = userInfo;
+          return true;
+        }
+      }
       this.logout();
       return false;
     }
@@ -162,7 +171,6 @@ class GoogleDriveService {
       return false;
     }
     if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
-      this.logout();
       return false;
     }
     return true;
@@ -170,7 +178,6 @@ class GoogleDriveService {
 
   getAccessToken() {
     if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
-      this.logout();
       return null;
     }
     return this.accessToken;
