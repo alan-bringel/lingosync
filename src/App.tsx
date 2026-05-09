@@ -2286,7 +2286,7 @@ export default function App() {
                         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center">
                           <button
                             onClick={() => setIsMaximized(prev => !prev)}
-                            className="p-1.5 rounded-lg transition-colors duration-200 text-gray-500 hover:text-white hover:bg-white/5"
+                            className="p-1.5 rounded-lg transition-colors duration-200 text-gray-600 hover:text-white hover:bg-white/5"
                             title="Maximizar visualização"
                           >
                             <Eye className="w-5 h-5" />
@@ -2317,7 +2317,7 @@ export default function App() {
                     )}
 
                     {isMaximized && (
-                      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
+                      <div className="pb-4 flex items-center justify-center">
                         <button
                           onClick={() => setIsMaximized(prev => !prev)}
                           className="p-1.5 rounded-lg transition-colors duration-200 text-white/70 hover:text-white hover:bg-white/10"
