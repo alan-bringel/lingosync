@@ -362,19 +362,18 @@ export default function App() {
         driveAudioFileId = await googleDriveService.uploadFile(audioFileName, audioBlob, storedTrack.audioType || 'audio/mpeg', track.driveAudioFileId);
       }
 
-      const updatedTrack = { 
-        ...track, 
-        driveFileId, 
-        driveAudioFileId, 
-        syncStatus: 'synced' as const 
-      };
       await updateTrackMetadata(track.id, { 
         driveFileId, 
         driveAudioFileId, 
         syncStatus: 'synced' 
       });
       
-      setPlaylist(prev => prev.map(t => t.id === track.id ? updatedTrack : t));
+      setPlaylist(prev => prev.map(t => t.id === track.id ? { 
+        ...t, 
+        driveFileId, 
+        driveAudioFileId, 
+        syncStatus: 'synced' as const 
+      } : t));
       return true;
     } catch (error) {
       console.error("Failed to sync to Drive:", error);
