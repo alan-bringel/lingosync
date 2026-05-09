@@ -60,6 +60,7 @@ export function FlashcardsView({
 
   // Persistent audio element for mobile compatibility
   const persistentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioAccumRef = useRef<Record<string, Record<string, string>>>({});
 
   useEffect(() => {
     if (flashcards.length > 0) {
@@ -224,7 +225,7 @@ export function FlashcardsView({
     // Play already-generated flashcard audio directly if it matches the selected voice.
     if (!forceRegenerate) {
       const existingAudioForVoice = getAudioForVoice(currentCard, selectedVoice);
-      if (existingAudioForVoice && currentCard.audioVoiceId === selectedVoice) {
+      if (existingAudioForVoice) {
         // Check if audio is silent (mostly zeros in base64)
         // We check if a significant portion of the start is silent (20000 chars is ~300ms)
         const isLikelySilent = existingAudioForVoice.length > 20000 && /^A+$/.test(existingAudioForVoice.substring(0, 20000));
@@ -273,8 +274,15 @@ export function FlashcardsView({
         console.log("First 100 chars of cached audio:", cached.substring(0, 100));
         
         // Save to current flashcard for future offline exports
+        const existingAccum = audioAccumRef.current[currentCard.id] || {};
+        const mergedAccum = { ...existingAccum };
+        if (currentCard.audioBase64 && typeof currentCard.audioBase64 === 'object') {
+          Object.assign(mergedAccum, currentCard.audioBase64);
+        }
+        mergedAccum[selectedVoice] = cached;
+        audioAccumRef.current[currentCard.id] = mergedAccum;
         const newFlashcards = [...flashcards];
-        newFlashcards[currentIndex] = { ...currentCard, audioBase64: setAudioForVoice(currentCard, selectedVoice, cached), audioVoiceId: selectedVoice };
+        newFlashcards[currentIndex] = { ...currentCard, audioBase64: mergedAccum, audioVoiceId: selectedVoice };
         onUpdateTrack({ flashcards: newFlashcards });
         
         // Try HTML5 Audio first
@@ -317,8 +325,15 @@ export function FlashcardsView({
     await setCachedWordAudio(word, base64Audio, selectedVoice);
     
     // Save to flashcard
+    const existingAccum = audioAccumRef.current[currentCard.id] || {};
+    const mergedAccum = { ...existingAccum };
+    if (currentCard.audioBase64 && typeof currentCard.audioBase64 === 'object') {
+      Object.assign(mergedAccum, currentCard.audioBase64);
+    }
+    mergedAccum[selectedVoice] = base64Audio;
+    audioAccumRef.current[currentCard.id] = mergedAccum;
     const newFlashcards = [...flashcards];
-    newFlashcards[currentIndex] = { ...currentCard, audioBase64: setAudioForVoice(currentCard, selectedVoice, base64Audio), audioVoiceId: selectedVoice };
+    newFlashcards[currentIndex] = { ...currentCard, audioBase64: mergedAccum, audioVoiceId: selectedVoice };
     onUpdateTrack({ flashcards: newFlashcards });
     
     // Try HTML5 Audio first
