@@ -239,9 +239,26 @@ class GoogleDriveService {
   }
 
   async deleteFile(fileId: string) {
-    await this.fetchDrive(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    if (!this.accessToken) throw new Error("Not logged in to Google Drive");
+
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
       method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+      },
     });
+
+    // DELETE returns 204 No Content (empty body) on success
+    if (response.status === 401 || response.status === 403) {
+      const errorBody = await response.json().catch(() => ({}));
+      const msg = errorBody.error?.message || `HTTP ${response.status}`;
+      throw new Error(msg);
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error?.message || `Google Drive API Error: HTTP ${response.status}`);
+    }
   }
 
   async downloadFile(fileId: string, onProgress?: (progress: number) => void): Promise<Blob> {
