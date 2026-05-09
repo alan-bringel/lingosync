@@ -42,6 +42,7 @@ export interface AudioTrack {
   driveAudioFileId?: string; // Google Drive file ID for the audio file
   syncStatus?: 'synced' | 'pending' | 'missing_local' | 'error' | 'cloud_only';
   lastAccessedAt?: number; // Timestamp for cache eviction (5 most recent kept locally)
+  updatedAt?: number; // Timestamp of last metadata edit (title, lessonNumber, etc.) — used for multi-device conflict resolution
 }
 
 declare global {
