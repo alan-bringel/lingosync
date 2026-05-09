@@ -1801,10 +1801,10 @@ export default function App() {
 
     let youtubeId: string | undefined;
     if (youtubeUrl) {
-      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const regExp = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
       const match = youtubeUrl.match(regExp);
-      if (match && match[2].length === 11) {
-        youtubeId = match[2];
+      if (match && match[1]) {
+        youtubeId = match[1];
       }
     }
 
@@ -2801,10 +2801,10 @@ export default function App() {
               const updates: Partial<AudioTrack> = {};
 
               if (url) {
-                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                const regExp = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
                 const match = url.match(regExp);
-                if (match && match[2].length === 11) {
-                  updates.youtubeId = match[2];
+                if (match && match[1]) {
+                  updates.youtubeId = match[1];
                   updates.isVideo = true;
                   // Clear local video when YouTube is synced
                   updates.localVideoUrl = null as any;
