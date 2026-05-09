@@ -308,7 +308,7 @@ export default function App() {
       });
     });
   };
-  const requestSyncImmediate = (trackId: string) => {
+  const requestSyncImmediate = (trackId: string, trackData?: AudioTrack) => {
     if (!isGoogleLoggedIn) return;
 
     if (syncingTrackIdRef.current === trackId) {
@@ -316,14 +316,14 @@ export default function App() {
       return;
     }
 
-    performSync(trackId);
+    performSync(trackId, trackData);
   };
 
-  const performSync = async (trackId: string) => {
+  const performSync = async (trackId: string, trackData?: AudioTrack) => {
     syncingTrackIdRef.current = trackId;
     dirtyTracksRef.current.delete(trackId);
 
-    const track = playlist.find(t => t.id === trackId);
+    const track = trackData || playlist.find(t => t.id === trackId);
     if (!track) {
       syncingTrackIdRef.current = null;
       return;
@@ -984,7 +984,8 @@ export default function App() {
       updateTrackMetadata(track.id, { knownWords: nextTrackKnown }).catch(console.error);
 
       if (isGoogleLoggedIn) {
-        requestSyncImmediate(track.id);
+        const updatedTrack = { ...track, knownWords: nextTrackKnown };
+        requestSyncImmediate(track.id, updatedTrack);
       }
 
       return prev.map((item, idx) =>
@@ -1401,7 +1402,8 @@ export default function App() {
       
       // Auto-sync to Drive whenever any track data changes (flashcards, knownWords, transcript, lessonNumber, etc.)
       if (isGoogleLoggedIn) {
-        requestSyncImmediate(trackId);
+        const freshTrack = { ...currentTrack, ...updatedTrack } as AudioTrack;
+        requestSyncImmediate(trackId, freshTrack);
       }
     }
     setPlaylist(prev => prev.map((track, i) =>
@@ -1459,12 +1461,13 @@ export default function App() {
     await deleteTrack(id);
 
     if (!deleteFromDrive && track.driveFileId) {
-      const updatedPlaylist = playlist.map(t => t.id === id ? { ...t, syncStatus: 'missing_local' as const, url: '' } : t);
+      const missingTrack = { ...track, syncStatus: 'missing_local' as const, url: '' };
+      const updatedPlaylist = playlist.map(t => t.id === id ? missingTrack : t);
       setPlaylist(updatedPlaylist);
       await refreshGlobalKnownWords(updatedPlaylist);
 
       if (isGoogleLoggedIn && track.driveFileId) {
-        requestSyncImmediate(id);
+        requestSyncImmediate(id, missingTrack);
       }
     } else {
       const newPlaylist = playlist.filter(t => t.id !== id);
