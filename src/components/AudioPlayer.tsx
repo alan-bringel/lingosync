@@ -1250,6 +1250,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       </div>
 
       {/* Controls Container */}
+      {!isMaximized && (
       <div className="bg-white/[0.04] relative">
         <div className="px-4 sm:px-8 py-3 sm:py-4 flex flex-col justify-center min-h-[96px] sm:min-h-[112px]">
           {/* Progress bar positioned between the divider and the controls */}
@@ -1344,6 +1345,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
           </div>
         </div>
       </div>
+      )}
 
       <audio
         ref={audioRef}

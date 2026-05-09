@@ -2272,28 +2272,30 @@ export default function App() {
                     exit={{ opacity: 0, scale: 0.98 }}
                     className="flex flex-col h-full max-w-5xl mx-auto w-full overflow-hidden relative"
                   >
-                    <button
-                      onClick={() => setIsMaximized(prev => !prev)}
-                      className="absolute top-2 right-2 z-20 p-1.5 rounded-lg transition-colors duration-200 text-gray-500 hover:text-white hover:bg-white/5"
-                      title={isMaximized ? "Mostrar controles" : "Maximizar visualização"}
-                    >
-                      {isMaximized ? (
-                        <EyeOff className="w-[18px] h-[18px] text-white" />
-                      ) : (
-                        <Eye className="w-[18px] h-[18px]" />
-                      )}
-                    </button>
-
                     {!isMaximized && (
                       <div className="pb-4 flex items-center justify-between">
-                        <Button
-                          variant="ghost"
-                          onClick={() => setCurrentView('library')}
-                          className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10 whitespace-nowrap"
-                        >
-                          <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
-                          <span>Biblioteca</span>
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            onClick={() => setCurrentView('library')}
+                            className="text-gray-600 hover:text-gray-300 text-sm uppercase tracking-widest font-bold flex items-center justify-start w-fit px-3 h-10 whitespace-nowrap"
+                          >
+                            <ArrowLeft className="w-5 h-5 mr-3 shrink-0" />
+                            <span>Biblioteca</span>
+                          </Button>
+
+                          <button
+                            onClick={() => setIsMaximized(prev => !prev)}
+                            className="p-1.5 rounded-lg transition-colors duration-200 text-gray-500 hover:text-white hover:bg-white/5"
+                            title={isMaximized ? "Mostrar controles" : "Maximizar visualização"}
+                          >
+                            {isMaximized ? (
+                              <EyeOff className="w-[18px] h-[18px] text-white" />
+                            ) : (
+                              <Eye className="w-[18px] h-[18px]" />
+                            )}
+                          </button>
+                        </div>
 
                         <Button
                           variant="ghost"
