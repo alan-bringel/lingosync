@@ -1233,7 +1233,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                               initial={{ height: 0, opacity: 0 }}
                               animate={{ height: "auto", opacity: 1 }}
                               exit={{ height: 0, opacity: 0 }}
-                              className="text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden"
+                              onClick={() => {
+                                if (isDictionaryModeGlobal && isMaximized) {
+                                  playSegment(segment.start, segment.end, sIdx);
+                                }
+                              }}
+                              className={cn(
+                                "text-lg sm:text-base text-gray-400 italic font-serif leading-relaxed overflow-hidden",
+                                isDictionaryModeGlobal && isMaximized && "cursor-pointer hover:text-gray-200 transition-colors"
+                              )}
                             >
                               {segment.translation || "(Tradução indisponível para este segmento.)"}
                             </motion.p>
