@@ -982,6 +982,17 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }
   };
 
+  const stopNarration = () => {
+    setIsPlaying(false);
+    setStopTime(null);
+    setActiveSegmentIndex(null);
+    if (track.youtubeId && ytPlayerRef.current && isYtReady) {
+      ytPlayerRef.current.pauseVideo?.();
+    } else if (audioRef.current) {
+      audioRef.current.pause();
+    }
+  };
+
   const toggleTranslation = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setShowTranslations(prev => ({
@@ -1208,7 +1219,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
             </div>
             <div className="flex items-center justify-between px-6 sm:px-10 pb-0 shrink-0">
               <button
-                onClick={(e) => { e.stopPropagation(); setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length); }}
+                onClick={(e) => { e.stopPropagation(); stopNarration(); setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length); }}
                 className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
                 title="Segmento anterior"
               >
@@ -1220,7 +1231,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 {focusSegmentIndex + 1} / {track.transcript.length}
               </span>
               <button
-                onClick={(e) => { e.stopPropagation(); setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length); }}
+                onClick={(e) => { e.stopPropagation(); stopNarration(); setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length); }}
                 className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-gray-500 hover:text-gray-200 active:scale-90 hover:bg-white/5 rounded-xl"
                 title="Próximo segmento"
               >
