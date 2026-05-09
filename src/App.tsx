@@ -375,6 +375,7 @@ export default function App() {
   const [isGeneratingCards, setIsGeneratingCards] = useState(false);
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
+  const syncDirectionRef = useRef<'upload' | 'download' | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const dirtyTracksRef = useRef<Set<string>>(new Set());
   const syncingTrackIdRef = useRef<string | null>(null);
@@ -433,6 +434,7 @@ export default function App() {
 
   const syncTrackToDrive = async (track: AudioTrack, retryCount = 0): Promise<boolean> => {
     if (!isGoogleLoggedIn) return false;
+    syncDirectionRef.current = 'upload';
     setIsSyncing(track.id);
     // Declarado fora do try para ser acessivel no catch em caso de erro
     let mergedTrack = { ...track };
@@ -556,6 +558,7 @@ export default function App() {
 
   const downloadTrackFromDrive = async (track: AudioTrack) => {
     if (!isGoogleLoggedIn || !track.driveFileId) return;
+    syncDirectionRef.current = 'download';
     setIsSyncing(track.id);
     setDownloadProgress(prev => ({ ...prev, [track.id]: 0 }));
     try {
@@ -2166,7 +2169,9 @@ export default function App() {
               <div className="mt-2 space-y-1">
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-3 h-3 animate-spin text-[#827367]" />
-                  <span className="text-xs text-[#827367] font-medium">Baixando da nuvem... {downloadProgress[track.id] || 0}%</span>
+                  <span className="text-xs text-[#827367] font-medium">
+                    {syncDirectionRef.current === 'upload' ? 'Enviando para a nuvem' : 'Baixando da nuvem'}... {downloadProgress[track.id] || 0}%
+                  </span>
                 </div>
                 <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
                   <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
