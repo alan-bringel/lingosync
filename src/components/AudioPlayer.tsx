@@ -212,9 +212,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
   const ytPlayerRef = useRef<any>(null);
   const [isYtReady, setIsYtReady] = useState(false);
+  const [ytError, setYtError] = useState(false);
   const isDraggingRef = useRef(false);
 
-  const hasVideo = !!(track.isVideo && (track.youtubeId || track.localVideoUrl || track.videoFileName));
+  const hasVideo = !!(track.isVideo && ((track.youtubeId && !ytError) || track.localVideoUrl || track.videoFileName));
+
+  // Reset ytError when switching to a different track
+  useEffect(() => {
+    setYtError(false);
+  }, [track.id]);
 
   // Close video drawer if video is removed
   useEffect(() => {
@@ -249,6 +255,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   useEffect(() => {
     if (!track.youtubeId) return;
 
+    setYtError(false);
     let destroyed = false;
     const ytContainerId = 'yt-player-element';
 
@@ -266,6 +273,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       else if (state === 0) {
         handleEndedInternal();
       }
+    };
+
+    const onPlayerError = () => {
+      if (destroyed) return;
+      setYtError(true);
+      setIsYtReady(false);
     };
 
     const initYt = () => {
@@ -291,7 +304,8 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         },
         events: {
           onReady: onPlayerReady,
-          onStateChange: onPlayerStateChange
+          onStateChange: onPlayerStateChange,
+          onError: onPlayerError
         }
       });
     };
