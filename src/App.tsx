@@ -1225,6 +1225,21 @@ export default function App() {
                 syncLatestToRef(newTrack);
                 return [...prev, newTrack];
               });
+
+              // Persist restored track to IndexedDB so it survives page reload
+              try {
+                const existingStored = await get<any[]>('lingosync_tracks') || [];
+                const { url: _, localVideoUrl: __, ...restoreMeta } = newTrack;
+                const restoreIdx = existingStored.findIndex((t: any) => t.id === newTrack.id || t.driveFileId === file.id);
+                if (restoreIdx >= 0) {
+                  existingStored[restoreIdx] = { ...existingStored[restoreIdx], ...restoreMeta };
+                } else {
+                  existingStored.push(restoreMeta);
+                }
+                await set('lingosync_tracks', existingStored);
+              } catch (saveErr) {
+                console.warn("Failed to persist restored track:", saveErr);
+              }
             } catch (err) {
               console.error("Failed to restore lesson from Drive:", err);
             }
@@ -1244,18 +1259,6 @@ export default function App() {
       checkDriveRestore();
     }
   }, [isGoogleLoggedIn, isLoading, checkDriveRestore]);
-
-  // Check Drive for deleted lessons when navigating to library
-  const lastLibraryCheckRef = useRef(0);
-  useEffect(() => {
-    if (currentView === 'library' && isGoogleLoggedIn && !isLoading) {
-      const now = Date.now();
-      if (now - lastLibraryCheckRef.current > 5000) {
-        lastLibraryCheckRef.current = now;
-        checkDriveRestore();
-      }
-    }
-  }, [currentView, isGoogleLoggedIn, isLoading, checkDriveRestore]);
 
   // Periodic sync: check Drive for current lesson changes every 15 seconds
   const lastPeriodicSyncRef = useRef(0);
@@ -1810,7 +1813,7 @@ export default function App() {
   const handleUpdateTrack = (updatedTrack: Partial<AudioTrack>) => {
     const trackId = currentTrack?.id;
     if (trackId) {
-      const { url, localVideoUrl, ...updates } = updatedTrack;
+      const { url, ...updates } = updatedTrack;
 
       // Only stamp updatedAt for actual metadata changes (title, lessonNumber, etc.)
       // not for flashcards/knownWords updates
