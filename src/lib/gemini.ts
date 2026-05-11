@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { TranscriptSegment } from "../types";
+import { TranscriptSegment, Word } from "../types";
 import { transcribeAudioAssemblyAI } from "../services/assemblyAiService";
 import { callDeepSeekChat } from "../services/deepseekService";
 
@@ -282,6 +282,9 @@ export async function transcribeAudio(
     throw new Error("A AssemblyAI não detectou voz no áudio.");
   }
 
+  // Save all original AssemblyAI word timestamps for precise word-by-word highlight
+  const allAssemblyWords: Word[] = rawSegments.flatMap(s => s.words || []);
+
   // ── Step 2: Translation + formatting via DeepSeek-V3 ──────────────────
   console.log(`[transcribeAudio] Inteligência (Tradução/Segmentação) via DeepSeek...`);
   const translated = await translateAndFormatWithDeepSeek(
@@ -290,7 +293,79 @@ export async function transcribeAudio(
     deepseekApiKey
   );
 
+  // ── Step 3: Re-map original AssemblyAI word timestamps onto final segments ──
+  if (allAssemblyWords.length > 0) {
+    return alignWordsWithAssemblyTimestamps(translated, allAssemblyWords);
+  }
+
   return translated;
+}
+
+/**
+ * Replaces DeepSeek's estimated word timestamps with the original
+ * AssemblyAI word-level timestamps for precise word-by-word highlighting.
+ *
+ * Aligns by sequential position since DeepSeek MUST use every word exactly once.
+ * When text differs (DeepSeek fixes transcription errors), uses lookahead matching.
+ */
+function alignWordsWithAssemblyTimestamps(
+  segments: TranscriptSegment[],
+  assemblyWords: Word[]
+): TranscriptSegment[] {
+  let asmIdx = 0;
+
+  return segments.map(segment => {
+    const textWords = segment.text.trim().split(/\s+/).filter(w => w.length > 0);
+    const matchedWords: Word[] = [];
+
+    for (const textWord of textWords) {
+      if (asmIdx >= assemblyWords.length) {
+        matchedWords.push({
+          text: textWord.replace(/[^a-zA-Z']/g, ''),
+          start: segment.start,
+          end: segment.end,
+        });
+        continue;
+      }
+
+      const segClean = textWord.toLowerCase().replace(/[^a-z']/g, '');
+      let candidate = assemblyWords[asmIdx];
+      let candidateClean = candidate.text.toLowerCase().replace(/[^a-z']/g, '');
+
+      if (segClean === candidateClean ||
+          (segClean.length > 2 && candidateClean.length > 2 &&
+           (segClean.startsWith(candidateClean) || candidateClean.startsWith(segClean)))) {
+        matchedWords.push({ ...candidate });
+        asmIdx++;
+      } else {
+        let found = false;
+        for (let look = 1; look <= 3 && asmIdx + look < assemblyWords.length; look++) {
+          const next = assemblyWords[asmIdx + look];
+          const nextClean = next.text.toLowerCase().replace(/[^a-z']/g, '');
+          if (segClean === nextClean ||
+              (segClean.length > 2 && nextClean.length > 2 &&
+               (segClean.startsWith(nextClean) || nextClean.startsWith(segClean)))) {
+            while (asmIdx < asmIdx + look) {
+              asmIdx++;
+            }
+            matchedWords.push({ ...next });
+            asmIdx++;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          matchedWords.push({
+            text: textWord.replace(/[^a-zA-Z']/g, ''),
+            start: segment.start,
+            end: segment.end,
+          });
+        }
+      }
+    }
+
+    return { ...segment, words: matchedWords };
+  });
 }
 
 /**
@@ -603,4 +678,97 @@ ${JSON.stringify(compactChunks)}`;
       }
     }
   );
+}
+
+/**
+ * Translates pre-segmented text segments using DeepSeek.
+ * Each segment's text is translated individually while maintaining context.
+ */
+export async function translateTextSegments(
+  segments: TranscriptSegment[],
+  nativeLanguage: string,
+  deepseekApiKey: string
+): Promise<TranscriptSegment[]> {
+  if (!deepseekApiKey || deepseekApiKey.trim() === "") {
+    throw new Error("DeepSeek API Key não configurada.");
+  }
+
+  const langName = getLanguageName(nativeLanguage);
+  const fullText = segments.map(s => s.text).join(" ");
+  const segmentsJson = segments.map(s => ({ text: s.text }));
+
+  const prompt = `You are a translator. Translate each English segment into ${langName}.
+
+Full context: "${fullText.slice(0, 2000)}"
+
+Segments to translate: ${JSON.stringify(segmentsJson)}
+
+CRITICAL RULES:
+1. Translate EACH segment independently.
+2. Each translation must correspond EXACTLY to its English segment.
+3. Use natural, idiomatic ${langName}.
+4. Mirror the punctuation of each segment.
+5. DO NOT merge or split segments — keep the same number of segments.
+6. If a segment is a single word, translate it appropriately in context.
+
+Output MINIFIED JSON: [{ "text": string, "translation": string }]
+Order must match input exactly.`;
+
+  const attemptTranslation = async (retryPrompt: string): Promise<any[]> => {
+    const resultText = await callDeepSeekChat(
+      [{ role: "user", content: retryPrompt }],
+      deepseekApiKey,
+      { type: "json_object" }
+    );
+
+    let jsonText = resultText;
+    const jsonMatch = resultText.match(/```json\n([\s\S]*?)\n```/) || resultText.match(/```([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[1].trim();
+    }
+
+    const parsed = JSON.parse(jsonText);
+    const translations = Array.isArray(parsed) ? parsed : (parsed.segments || parsed.data || []);
+    return translations;
+  };
+
+  try {
+    let translations: any[];
+
+    try {
+      translations = await attemptTranslation(prompt);
+    } catch (firstError) {
+      console.warn("[translateTextSegments] Primeira tentativa falhou, tentando fallback...", firstError);
+      const fallbackPrompt = `Translate these English phrases to ${langName}. Return JSON array where each item has "text" (the original) and "translation" (the ${langName} translation).
+
+Input: ${JSON.stringify(segmentsJson)}
+
+Return ONLY valid JSON.`;
+      translations = await attemptTranslation(fallbackPrompt);
+    }
+
+    if (!translations || translations.length === 0) {
+      throw new Error("DeepSeek não retornou traduções.");
+    }
+
+    return segments.map((segment, idx) => {
+      const translated = translations[idx] || {};
+      const translationText = translated.translation || translations[idx] || "";
+
+      if (!translationText || translationText.trim() === "") {
+        console.warn(`[translateTextSegments] Tradução vazia para segmento ${idx}: "${segment.text}"`);
+      }
+
+      return {
+        ...segment,
+        translation: normalizeTranslationPunctuationBySource(segment.text, translationText || segment.text),
+      };
+    });
+  } catch (error: any) {
+    console.error("[translateTextSegments] DeepSeek error:", error);
+    return segments.map(segment => ({
+      ...segment,
+      translation: segment.text,
+    }));
+  }
 }

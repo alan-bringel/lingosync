@@ -54,6 +54,10 @@ export function FlashcardsView({
     return localStorage.getItem("lingosync_preferred_voice") || "en-US-Neural2-A";
   });
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
+  const handlePlayAudioRef = useRef<(e?: React.MouseEvent | React.TouchEvent, forceRegenerate?: boolean) => Promise<void>>(async () => {});
+  const nextCardRef = useRef<() => void>(() => {});
+  const prevCardRef = useRef<() => void>(() => {});
+  const isFlippedRef = useRef(isFlipped);
   
   const currentCard = flashcards[currentIndex];
   const isSafari = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || navigator.vendor === "Apple Computer, Inc.");
@@ -68,6 +72,10 @@ export function FlashcardsView({
       setCurrentIndex(Math.min(Math.max(0, Math.floor(startIdx)), flashcards.length - 1));
     }
   }, [initialIndex, flashcards.length]);
+
+  useEffect(() => {
+    isFlippedRef.current = isFlipped;
+  }, [isFlipped]);
 
   const variants = {
     enter: (dir: number) => ({ x: dir > 0 ? '100%' : '-100%' }),
@@ -365,6 +373,7 @@ export function FlashcardsView({
     setIsGeneratingAudio(false);
   }
 };
+handlePlayAudioRef.current = handlePlayAudio;
 
   // Long press handling
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
@@ -391,6 +400,7 @@ export function FlashcardsView({
     const nextIdx = (currentIndex + 1) % flashcards.length;
     setCurrentIndex(nextIdx);
   };
+  nextCardRef.current = nextCard;
 
   const prevCard = () => {
     setIsFlipped(false);
@@ -398,6 +408,39 @@ export function FlashcardsView({
     const prevIdx = (currentIndex - 1 + flashcards.length) % flashcards.length;
     setCurrentIndex(prevIdx);
   };
+  prevCardRef.current = prevCard;
+
+  // Atalhos de teclado para desktop
+  useEffect(() => {
+    document.body.setAttribute('data-flashcards-open', 'true');
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
+      if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        nextCardRef.current();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        prevCardRef.current();
+      } else if (e.code === 'Space') {
+        if (!isFlippedRef.current) {
+          e.preventDefault();
+          handlePlayAudioRef.current();
+        }
+      } else if (e.code === 'Enter') {
+        e.preventDefault();
+        setIsFlipped(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.removeAttribute('data-flashcards-open');
+    };
+  }, []);
 
   if (flashcards.length === 0) {
     return (

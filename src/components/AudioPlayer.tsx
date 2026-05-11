@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { Play, Pause, SkipBack, SkipForward, Languages, ChevronDown, ChevronUp, Download, Edit2, Check, X, Settings2, Clock, Sparkles, Infinity as InfinityIcon, Gauge, Repeat, Youtube, Monitor, MonitorOff, RefreshCw, Loader2, Book, Edit3 } from "lucide-react";
 
 declare global {
@@ -146,22 +146,36 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const [isEditModeGlobal, setIsEditModeGlobal] = useState(false);
   const longPressTimerRef = useRef<any>(null);
   const isLongPressRef = useRef(false);
+  const handledByPointerRef = useRef(false);
+
+  const handleVideoClick = () => {
+    if (handledByPointerRef.current) {
+      handledByPointerRef.current = false;
+      return;
+    }
+    if (hasVideo) {
+      setShowVideo(!showVideo);
+    } else {
+      onVideoSyncClick?.();
+    }
+  };
 
   const handleVideoTouchStart = (e: React.PointerEvent) => {
+    handledByPointerRef.current = false;
     isLongPressRef.current = false;
     longPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
-      onVideoSyncClick?.(); // Open video source modal on long press
-    }, 500); // 500ms for long press
+      onVideoSyncClick?.();
+    }, 500);
   };
 
   const handleVideoTouchEnd = (e: React.PointerEvent) => {
+    handledByPointerRef.current = true;
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
 
-    // If it wasn't a long press, it's a normal toggle
     if (!isLongPressRef.current) {
       if (hasVideo) {
         setShowVideo(!showVideo);
@@ -192,16 +206,28 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }
   }, [isPausedExternally]);
 
-  // Stop playback when toggling focus mode
+  // Stop playback and reset to first segment when toggling focus mode
   useEffect(() => {
-    if (isPlaying) {
-      if (track.youtubeId && ytPlayerRef.current && isYtReady) {
-        ytPlayerRef.current.pauseVideo?.();
-      } else if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      setIsPlaying(false);
+    // Always stop everything regardless of isPlaying state
+    if (ytPlayTimeoutRef.current) {
+      clearTimeout(ytPlayTimeoutRef.current);
+      ytPlayTimeoutRef.current = null;
     }
+    lastSeekToRef.current = null;
+    if (track.youtubeId && ytPlayerRef.current) {
+      try { ytPlayerRef.current.pauseVideo?.(); } catch (_) {}
+      try { ytPlayerRef.current.seekTo?.(0); } catch (_) {}
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+    setCurrentTime(0);
+    stableTimeRef.current = 0;
+    setStopTime(null);
+    setShowTranslations({});
+    setFocusSegmentIndex(0);
   }, [isMaximized]);
 
   // Playback settings
@@ -214,6 +240,16 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const [isYtReady, setIsYtReady] = useState(false);
   const [ytError, setYtError] = useState(false);
   const isDraggingRef = useRef(false);
+  const lastActiveWordRef = useRef<string | null>(null);
+  const stableTimeRef = useRef<number>(0);
+  const handleTimeUpdateRef = useRef<(time: number) => void>(() => {});
+  const lastSeekToRef = useRef<number | null>(null);
+  const ytPlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const togglePlayRef = useRef<() => void>(() => {});
+  const stopNarrationRef = useRef<() => void>(() => {});
+  const playSegmentRef = useRef<(start: number, end: number, index: number) => void>(() => {});
+  const focusSegmentIndexRef = useRef<number>(0);
+  const trackRef = useRef(track);
 
   const hasVideo = !!(track.isVideo && ((track.youtubeId && !ytError) || track.localVideoUrl || track.videoFileName));
 
@@ -339,6 +375,11 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     };
   }, [track.youtubeId, track.id]);
 
+  // Keep handleTimeUpdateRef sempre atualizado para evitar stale closure no RAF
+  useEffect(() => {
+    handleTimeUpdateRef.current = handleTimeUpdateLogic;
+  });
+
   // Sync playback time with state using requestAnimationFrame for smooth UI
   useEffect(() => {
     let animationFrameId: number;
@@ -348,10 +389,10 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         if (track.youtubeId && isYtReady && ytPlayerRef.current?.getCurrentTime) {
           const time = ytPlayerRef.current.getCurrentTime();
           if (time !== undefined) {
-            handleTimeUpdateLogic(time);
+            handleTimeUpdateRef.current(time);
           }
         } else if (!track.youtubeId && audioRef.current) {
-          handleTimeUpdateLogic(audioRef.current.currentTime);
+          handleTimeUpdateRef.current(audioRef.current.currentTime);
         }
       }
       if (isPlaying) {
@@ -365,6 +406,18 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
     return () => cancelAnimationFrame(animationFrameId);
   }, [isPlaying, track.youtubeId, isYtReady]);
+
+  // Limpa o destaque da palavra quando a reprodução para
+  useLayoutEffect(() => {
+    if (!isPlaying) {
+      if (lastActiveWordRef.current) {
+        const el = document.querySelector(`[data-word-key="${lastActiveWordRef.current}"]`) as HTMLElement | null;
+        if (el) el.style.removeProperty('color');
+        lastActiveWordRef.current = null;
+      }
+      stableTimeRef.current = 0;
+    }
+  }, [isPlaying]);
 
   // Sync Video Element with Audio Master
   useEffect(() => {
@@ -410,7 +463,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const transcriptRef = useRef(track.transcript);
 
   const [isSyncingTranslation, setIsSyncingTranslation] = useState<number | null>(null);
-  const getSegmentStartWithPreroll = (start: number) => start;
+  const getSegmentStartWithPreroll = (start: number) => Math.max(0, start - 0.5);
 
   useEffect(() => {
     transcriptRef.current = track.transcript;
@@ -476,13 +529,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     const baseColorClass = isActive ? "text-gray-200" : "text-gray-400";
 
     return parts.map((part, i) => {
-      const isWord = pattern.test(part);
+      const isWord = /^[a-zA-Z']+$/.test(part);
       if (!isWord) {
         // Apply color to punctuation if the immediately preceding word was known
         let followingKnownWord = false;
         if (i > 0) {
           const prevPart = parts[i - 1];
-          if (/([a-zA-Z']+)/.test(prevPart) && knownWords.has(prevPart.toLowerCase())) {
+          if (/^[a-zA-Z']+$/.test(prevPart) && knownWords.has(prevPart.toLowerCase())) {
             followingKnownWord = true;
           }
         }
@@ -501,13 +554,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
       const lowerWord = part.toLowerCase();
       const needsHighlight = !knownWords.has(lowerWord);
+      const wordCount = Math.floor(i / 2);
 
       return (
         <span
           key={i}
           onClick={(e) => handleSegmentClick(e, segmentIdx, i, part)}
+          data-word-key={`${segmentIdx}-${wordCount}`}
           className={cn(
-            "transition-colors duration-120 ease-in-out cursor-pointer",
+            "cursor-pointer",
             needsHighlight ? baseColorClass : knownColorClass,
             isDictionaryModeGlobal && "border-b border-dotted border-[#827367] pb-[1px]"
           )}
@@ -778,10 +833,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   };
 
   useEffect(() => {
+    trackRef.current = track;
     setIsPlaying(false);
     setCurrentTime(0);
     setStopTime(null);
     setShowTranslations({});
+    stableTimeRef.current = 0;
     if (audioRef.current) {
       audioRef.current.load();
     }
@@ -841,6 +898,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       setIsPlaying(!isPlaying);
     }
   };
+  togglePlayRef.current = togglePlay;
 
   const handleTimeUpdateLogic = (time: number) => {
     setCurrentTime(prevTime => {
@@ -852,6 +910,73 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       }
       return time;
     });
+
+    // Estabiliza o time: só avança, nunca volta (elimina jitter que causava
+    // re-destaque rápido em palavras anteriores)
+    if (time > stableTimeRef.current || !isPlaying || isDraggingRef.current) {
+      stableTimeRef.current = time;
+    }
+    const stableTime = stableTimeRef.current;
+
+    // Word-by-word highlight via DOM direta (style.setProperty em vez de classList
+    // para evitar que o React remova a cor durante a reconciliação do className)
+    const segIdx = track.transcript.findIndex(s => stableTime >= s.start && stableTime <= s.end);
+    let activeKey: string | null = null;
+    if (segIdx !== -1) {
+      const seg = track.transcript[segIdx];
+      let wIdx: number | null = null;
+      if (seg.words?.length) {
+        const exact = seg.words.findIndex(w => stableTime >= w.start && stableTime <= w.end);
+        if (exact !== -1) {
+          wIdx = exact;
+        } else {
+          const wordCount = seg.words.length;
+          const segDur = seg.end - seg.start;
+          if (segDur > 0) {
+            const estimated = Math.floor((stableTime - seg.start) / (segDur / wordCount));
+            if (estimated >= 0 && estimated < wordCount) wIdx = estimated;
+          }
+        }
+      }
+      if (wIdx === null) {
+        const textWords = seg.text.trim().split(/\s+/).filter(w => w.length > 0);
+        if (textWords.length > 0) {
+          const segDur = seg.end - seg.start;
+          if (segDur > 0) {
+            const estimated = Math.floor((stableTime - seg.start) / (segDur / textWords.length));
+            if (estimated >= 0 && estimated < textWords.length) wIdx = estimated;
+          }
+        }
+      }
+      // Guarda monotônica: dentro do mesmo segmento, o índice da palavra nunca volta
+      if (wIdx !== null) {
+        const prevKey = lastActiveWordRef.current;
+        if (prevKey) {
+          const parts = prevKey.split('-');
+          if (parts.length === 2) {
+            const prevSeg = parseInt(parts[0], 10);
+            const prevWord = parseInt(parts[1], 10);
+            if (segIdx === prevSeg && wIdx < prevWord) {
+              wIdx = prevWord;
+            }
+          }
+        }
+      }
+      if (wIdx !== null) activeKey = `${segIdx}-${wIdx}`;
+    }
+    if (activeKey !== lastActiveWordRef.current) {
+      if (lastActiveWordRef.current) {
+        const prevEl = document.querySelector(`[data-word-key="${lastActiveWordRef.current}"]`) as HTMLElement | null;
+        if (prevEl) prevEl.style.removeProperty('color');
+      }
+      if (activeKey) {
+        const el = document.querySelector(`[data-word-key="${activeKey}"]`) as HTMLElement | null;
+        if (el) {
+          el.style.setProperty('color', '#b38cff', 'important');
+        }
+      }
+      lastActiveWordRef.current = activeKey;
+    }
 
     let currentActiveSpeed = globalSpeed;
 
@@ -870,9 +995,17 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         if (activeSegmentIndex !== null) {
           const seg = track.transcript[activeSegmentIndex];
           const loopStart = getSegmentStartWithPreroll(seg.start);
+          stableTimeRef.current = loopStart;
           if (track.youtubeId && ytPlayerRef.current && isYtReady) {
+            ytPlayerRef.current.pauseVideo?.();
+            setIsPlaying(false);
             ytPlayerRef.current.seekTo?.(loopStart);
-            ytPlayerRef.current.playVideo?.();
+            lastSeekToRef.current = loopStart;
+            if (ytPlayTimeoutRef.current) clearTimeout(ytPlayTimeoutRef.current);
+            ytPlayTimeoutRef.current = setTimeout(() => {
+              ytPlayerRef.current?.playVideo?.();
+              setIsPlaying(true);
+            }, 150);
           } else if (audioRef.current) {
             audioRef.current.currentTime = loopStart;
             audioRef.current.play();
@@ -919,6 +1052,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       return;
     }
     const time = value[0];
+    stableTimeRef.current = time;
     if (track.youtubeId && ytPlayerRef.current && isYtReady) {
       ytPlayerRef.current.seekTo?.(time);
       setCurrentTime(time);
@@ -971,13 +1105,20 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
 
     // Add a tiny preroll to avoid clipping the first syllable on fresh seeks.
     const exactStart = getSegmentStartWithPreroll(start);
+    stableTimeRef.current = exactStart;
 
     if (track.youtubeId && ytPlayerRef.current && isYtReady) {
+      ytPlayerRef.current.pauseVideo?.();
+      setIsPlaying(false);
       ytPlayerRef.current.setPlaybackRate?.(speed);
       ytPlayerRef.current.seekTo?.(exactStart);
-      ytPlayerRef.current.playVideo?.();
+      lastSeekToRef.current = exactStart;
       setCurrentTime(exactStart);
-      setIsPlaying(true);
+      if (ytPlayTimeoutRef.current) clearTimeout(ytPlayTimeoutRef.current);
+      ytPlayTimeoutRef.current = setTimeout(() => {
+        ytPlayerRef.current?.playVideo?.();
+        setIsPlaying(true);
+      }, 150);
     } else if (audioRef.current) {
       const audio = audioRef.current;
       audio.pause();
@@ -999,12 +1140,21 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       setIsPlaying(true);
     }
   };
+  playSegmentRef.current = playSegment;
 
   const handleEndedInternal = () => {
     if (globalRepeatsLeftRef.current > 0 || globalRepeatsLeftRef.current === Infinity) {
+      stableTimeRef.current = 0;
       if (track.youtubeId && ytPlayerRef.current && isYtReady) {
+        ytPlayerRef.current.pauseVideo?.();
+        setIsPlaying(false);
         ytPlayerRef.current.seekTo?.(0);
-        ytPlayerRef.current.playVideo?.();
+        lastSeekToRef.current = 0;
+        if (ytPlayTimeoutRef.current) clearTimeout(ytPlayTimeoutRef.current);
+        ytPlayTimeoutRef.current = setTimeout(() => {
+          ytPlayerRef.current?.playVideo?.();
+          setIsPlaying(true);
+        }, 150);
       } else if (audioRef.current) {
         audioRef.current.currentTime = 0;
         audioRef.current.play();
@@ -1012,13 +1162,17 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       if (globalRepeatsLeftRef.current !== Infinity) {
         globalRepeatsLeftRef.current -= 1;
       }
-      setIsPlaying(true);
     } else {
       setIsPlaying(false);
     }
   };
 
   const stopNarration = () => {
+    if (ytPlayTimeoutRef.current) {
+      clearTimeout(ytPlayTimeoutRef.current);
+      ytPlayTimeoutRef.current = null;
+    }
+    lastSeekToRef.current = null;
     setIsPlaying(false);
     setStopTime(null);
     setActiveSegmentIndex(null);
@@ -1028,6 +1182,60 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       audioRef.current.pause();
     }
   };
+  stopNarrationRef.current = stopNarration;
+
+  // Mantém a ref sincronizada para uso nos atalhos de teclado
+  useEffect(() => {
+    focusSegmentIndexRef.current = focusSegmentIndex;
+  }, [focusSegmentIndex]);
+
+  // Atalhos de teclado para desktop
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInputActive = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      if (isInputActive) return;
+
+      // Ignora atalhos se a overlay de flashcards estiver aberta
+      if (document.body.getAttribute('data-flashcards-open') === 'true') return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (isMaximized) {
+          // No modo foco: Espaço reproduz apenas o segmento atual
+          const idx = focusSegmentIndexRef.current;
+          const seg = trackRef.current.transcript[idx];
+          if (seg) {
+            playSegmentRef.current(seg.start, seg.end, idx);
+          }
+        } else {
+          // No modo normal: Espaço reproduz a lição completa (play/pause)
+          togglePlayRef.current();
+        }
+      }
+
+      if (isMaximized) {
+        if (e.code === 'ArrowRight') {
+          e.preventDefault();
+          stopNarrationRef.current();
+          setFocusSegmentIndex(prev => (prev + 1) % track.transcript.length);
+        } else if (e.code === 'ArrowLeft') {
+          e.preventDefault();
+          stopNarrationRef.current();
+          setFocusSegmentIndex(prev => (prev - 1 + track.transcript.length) % track.transcript.length);
+        } else if (e.code === 'ArrowDown') {
+          e.preventDefault();
+          setShowTranslations(prev => ({
+            ...prev,
+            [focusSegmentIndexRef.current]: !prev[focusSegmentIndexRef.current]
+          }));
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMaximized, track.transcript.length]);
 
   const toggleTranslation = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1587,6 +1795,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={handleVideoClick}
                   onPointerDown={handleVideoTouchStart}
                   onPointerUp={handleVideoTouchEnd}
                   onPointerLeave={() => {

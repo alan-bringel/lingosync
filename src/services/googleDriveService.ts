@@ -15,10 +15,12 @@ export interface GoogleDriveFile {
 }
 
 class GoogleDriveService {
+  private clientId: string = "";
   private tokenClient: any = null;
   private accessToken: string | null = null;
   private tokenExpiresAt: number | null = null;
   private _userInfo: GoogleUserInfo | null = null;
+  private refreshIntervalId: ReturnType<typeof setInterval> | null = null;
 
   get userInfo(): GoogleUserInfo | null {
     return this._userInfo;
@@ -36,41 +38,64 @@ class GoogleDriveService {
   }
 
   async initialize(clientId: string) {
+    this.clientId = clientId;
     if (typeof window !== "undefined" && (window as any).google?.accounts?.oauth2) {
-      this.setupTokenClient(clientId);
       return;
     }
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
+      const existingScript = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+      if (existingScript) {
+        const checkLoaded = () => {
+          if ((window as any).google?.accounts?.oauth2) {
+            resolve();
+          } else {
+            setTimeout(checkLoaded, 100);
+          }
+        };
+        checkLoaded();
+        return;
+      }
       const script = document.createElement("script");
       script.src = "https://accounts.google.com/gsi/client";
-      script.onload = () => {
-        this.setupTokenClient(clientId);
-        resolve();
-      };
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Falha ao carregar a biblioteca Google Identity Services"));
       document.head.appendChild(script);
     });
   }
 
-  private setupTokenClient(clientId: string) {
-    this.tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: SCOPES,
-      callback: (response: any) => {
-        if (response.error) {
-          console.error("Google Auth Error:", response.error);
-          return;
-        }
-        this.setTokens(response);
-      },
-    });
-  }
+  async refreshAccessTokenSilently(): Promise<boolean> {
+    if (!this.clientId || !this.tokenClient) return false;
 
-  private setTokens(response: any) {
-    this.accessToken = response.access_token;
-    this.tokenExpiresAt = Date.now() + (response.expires_in || 3600) * 1000;
-    localStorage.setItem("google_drive_access_token", response.access_token);
-    localStorage.setItem("google_drive_token_expires_at", String(this.tokenExpiresAt));
-    localStorage.setItem("google_drive_scopes", this.getRequiredScopesHash());
+    return new Promise((resolve) => {
+      try {
+        const timer = setTimeout(() => {
+          resolve(false);
+        }, 10000);
+
+        this.tokenClient.callback = (response: any) => {
+          clearTimeout(timer);
+          if (response.error) {
+            console.error("Silent token refresh failed:", response.error);
+            resolve(false);
+            return;
+          }
+          if (response.access_token) {
+            this.accessToken = response.access_token;
+            this.tokenExpiresAt = Date.now() + 3600 * 1000;
+            localStorage.setItem("google_drive_access_token", response.access_token);
+            localStorage.setItem("google_drive_token_expires_at", String(this.tokenExpiresAt));
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        };
+
+        this.tokenClient.requestAccessToken({ prompt: "" });
+      } catch (e) {
+        console.error("Silent token refresh threw:", e);
+        resolve(false);
+      }
+    });
   }
 
   async getUserInfo() {
@@ -93,68 +118,114 @@ class GoogleDriveService {
   }
 
   async login() {
+    if (!this.clientId) {
+      throw new Error("Google OAuth não iniciado. Chame initialize() primeiro.");
+    }
+
     return new Promise<void>((resolve, reject) => {
       if (!this.tokenClient) {
-        reject(new Error("Google OAuth not initialized"));
-        return;
+        this.tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+          client_id: this.clientId,
+          scope: SCOPES,
+          callback: async (response: any) => {
+            if (response.error) {
+              reject(new Error(response.error));
+              return;
+            }
+            if (!response.access_token) {
+              reject(new Error("Nenhum token de acesso retornado"));
+              return;
+            }
+            try {
+              this.accessToken = response.access_token;
+              this.tokenExpiresAt = Date.now() + (response.expires_in || 3600) * 1000;
+              localStorage.setItem("google_drive_access_token", response.access_token);
+              localStorage.setItem("google_drive_token_expires_at", String(this.tokenExpiresAt));
+              localStorage.setItem("google_drive_scopes", this.getRequiredScopesHash());
+
+              const userInfo = await this.getUserInfo();
+              if (!userInfo) {
+                reject(new Error("Falha ao obter informações do usuário"));
+                return;
+              }
+              this._userInfo = userInfo;
+              this.startPeriodicRefresh();
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          },
+        });
+      } else {
+        this.tokenClient.callback = async (response: any) => {
+          if (response.error) {
+            reject(new Error(response.error));
+            return;
+          }
+          if (!response.access_token) {
+            reject(new Error("Nenhum token de acesso retornado"));
+            return;
+          }
+          try {
+            this.accessToken = response.access_token;
+            this.tokenExpiresAt = Date.now() + (response.expires_in || 3600) * 1000;
+            localStorage.setItem("google_drive_access_token", response.access_token);
+            localStorage.setItem("google_drive_token_expires_at", String(this.tokenExpiresAt));
+            localStorage.setItem("google_drive_scopes", this.getRequiredScopesHash());
+
+            const userInfo = await this.getUserInfo();
+            if (!userInfo) {
+              reject(new Error("Falha ao obter informações do usuário"));
+              return;
+            }
+            this._userInfo = userInfo;
+            this.startPeriodicRefresh();
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        };
       }
-      this.tokenClient.callback = async (response: any) => {
-        if (response.error) {
-          reject(new Error(response.error));
-          return;
-        }
-        const grantedScopes = (response.scope || "").split(" ");
-        if (!grantedScopes.includes("https://www.googleapis.com/auth/drive.appdata")) {
-          reject(new Error(
-            "Escopo drive.appdata não foi autorizado. Verifique se adicionou " +
-            "'https://www.googleapis.com/auth/drive.appdata' na tela de consentimento " +
-            "OAuth do Google Cloud Console (APIs & Services > OAuth consent screen > Scopes) " +
-            "e que o app está publicado."
-          ));
-          return;
-        }
-        this.setTokens(response);
-        const userInfo = await this.getUserInfo();
-        if (!userInfo) {
-          reject(new Error("Failed to fetch user info"));
-          return;
-        }
-        resolve();
-      };
+
       this.tokenClient.requestAccessToken({ prompt: "consent" });
     });
   }
 
   async trySilentLogin() {
     if (!this.accessToken) return false;
+
     if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
-      // Token expired — try silent refresh before logging out
-      const refreshed = await this.refreshTokenSilently();
+      const refreshed = await this.refreshAccessTokenSilently();
       if (refreshed) {
         const userInfo = await this.getUserInfo();
         if (userInfo) {
           this._userInfo = userInfo;
+          this.startPeriodicRefresh();
           return true;
         }
       }
       this.logout();
       return false;
     }
+
     const storedScopes = localStorage.getItem("google_drive_scopes");
     if (storedScopes !== this.getRequiredScopesHash()) {
       this.logout();
       return false;
     }
+
     const userInfo = await this.getUserInfo();
     if (!userInfo) {
       this.logout();
       return false;
     }
     this._userInfo = userInfo;
+    this.startPeriodicRefresh();
     return true;
   }
 
   logout() {
+    this.stopPeriodicRefresh();
     this.accessToken = null;
     this.tokenExpiresAt = null;
     this._userInfo = null;
@@ -176,33 +247,36 @@ class GoogleDriveService {
     return true;
   }
 
+  startPeriodicRefresh(intervalMinutes: number = 30) {
+    this.stopPeriodicRefresh();
+    this.refreshIntervalId = setInterval(async () => {
+      if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt - 5 * 60 * 1000) {
+        await this.refreshAccessTokenSilently();
+      }
+    }, intervalMinutes * 60 * 1000);
+  }
+
+  stopPeriodicRefresh() {
+    if (this.refreshIntervalId !== null) {
+      clearInterval(this.refreshIntervalId);
+      this.refreshIntervalId = null;
+    }
+  }
+
   getAccessToken() {
-    if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
+    if (this.accessToken && this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
       return null;
     }
     return this.accessToken;
   }
 
   async refreshTokenSilently(): Promise<boolean> {
-    if (!this.tokenClient) return false;
-    return new Promise((resolve) => {
-      const originalCallback = this.tokenClient.callback;
-      this.tokenClient.callback = (response: any) => {
-        if (response.error) {
-          this.logout();
-          resolve(false);
-          return;
-        }
-        this.setTokens(response);
-        resolve(true);
-      };
-      try {
-        this.tokenClient.requestAccessToken({ prompt: '' });
-      } catch {
-        this.tokenClient.callback = originalCallback;
-        resolve(false);
-      }
-    });
+    const refreshed = await this.refreshAccessTokenSilently();
+    if (!refreshed) {
+      this.logout();
+      return false;
+    }
+    return true;
   }
 
   private async executeWithRefresh<T>(fn: () => Promise<T>, hasRetried = false): Promise<T> {
@@ -215,7 +289,7 @@ class GoogleDriveService {
         msg.includes("Invalid Credentials") ||
         msg.includes("Request had invalid authentication");
       if (isAuthError && !hasRetried) {
-        const refreshed = await this.refreshTokenSilently();
+        const refreshed = await this.refreshAccessTokenSilently();
         if (refreshed && this.accessToken) {
           return await fn();
         }
@@ -305,7 +379,6 @@ class GoogleDriveService {
         },
       });
 
-      // DELETE returns 204 No Content (empty body) on success
       if (response.status === 401 || response.status === 403) {
         const errorBody = await response.json().catch(() => ({}));
         const msg = errorBody.error?.message || `HTTP ${response.status}`;

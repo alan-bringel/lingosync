@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { AudioPlayer } from "./components/AudioPlayer";
 import { INITIAL_PLAYLIST } from "./constants";
 import { AudioTrack, TranscriptSegment, Word } from "./types";
+import { splitTextIntoSemanticSegments } from "./lib/sentenceSplitter";
 // import { ScrollArea } from "@/components/ui/scroll-area";
 const ScrollArea = ({ children, className }: any) => <div className={className} style={{ overflowY: 'auto' }}>{children}</div>;
 // import { Badge } from "@/components/ui/badge";
 const Badge = ({ children, className }: any) => <span className={className}>{children}</span>;
 import { VideoSyncModal } from "./components/VideoSyncModal";
-import { GerarLicaoModal } from "./components/GerarLicaoModal";
 import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, Info, ExternalLink, Key, Database, RefreshCw, X, Shield, RectangleVertical, AudioLines, Library, RotateCw, ChevronDown, Link2, Languages, Coins, UserCircle, LogOut, CloudDownload, Eye, EyeOff } from "lucide-react";
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
@@ -41,7 +41,7 @@ const SUPPORTED_LANGUAGES: Language[] = [
   { code: 'pt', label: 'PT' },
 ];
 
-const MAX_WORDS_PER_SEGMENT = 15;
+const MAX_WORDS_PER_SEGMENT = 20;
 
 const LingoSyncLogo = ({ className = "w-10 h-10" }: { className?: string }) => (
   <div className={cn("relative flex items-center justify-center", className)}>
@@ -181,87 +181,46 @@ function LanguageSelector({ currentLanguage, onLanguageChange, exclude, classNam
   );
 }
 
-function splitTranslationByWordChunks(translation: string, chunkSizes: number[]): string[] {
+function splitTranslationByWordChunks(translation: string, chunkTexts: string[]): string[] {
   const normalized = (translation || "").trim();
-  if (!normalized) return chunkSizes.map(() => "");
-  const allWords = normalized.split(/\s+/).filter(Boolean);
-  if (allWords.length <= 1) return chunkSizes.map((_, i) => (i === 0 ? normalized : ""));
+  if (!normalized) return chunkTexts.map(() => "");
 
-  const sentences: string[] = [];
+  const translationSentences: string[] = [];
   const sentenceRegex = /[^.!?]*[.!?]+/g;
   let match;
   while ((match = sentenceRegex.exec(normalized)) !== null) {
-    sentences.push(match[0].trim());
+    translationSentences.push(match[0].trim());
   }
   const remainder = normalized.replace(sentenceRegex, "").trim();
-  if (remainder) sentences.push(remainder);
-  if (sentences.length === 0) sentences.push(normalized);
+  if (remainder) translationSentences.push(remainder);
+  if (translationSentences.length === 0) translationSentences.push(normalized);
 
-  const sentenceWordCounts = sentences.map(s => s.split(/\s+/).filter(Boolean).length);
-  const totalTranslationWords = sentenceWordCounts.reduce((a, b) => a + b, 0);
-  const totalTextWords = chunkSizes.reduce((a, b) => a + b, 0);
-
-  const result: string[] = chunkSizes.map(() => "");
+  const result: string[] = chunkTexts.map(() => "");
   let sentenceIdx = 0;
+  const totalTranslationSentences = translationSentences.length;
 
-  chunkSizes.forEach((chunkSize, chunkIdx) => {
-    if (sentenceIdx >= sentences.length) return;
+  const sentencesPerChunk = Math.max(1, Math.floor(totalTranslationSentences / chunkTexts.length));
 
-    const targetWords = (chunkSize / totalTextWords) * totalTranslationWords;
-    let accumulatedWords = 0;
-    const accumulatedSentences: string[] = [];
+  chunkTexts.forEach((_, chunkIdx) => {
+    const isLast = chunkIdx === chunkTexts.length - 1;
+    const count = isLast ? totalTranslationSentences - sentenceIdx : sentencesPerChunk;
 
-    while (sentenceIdx < sentences.length) {
-      const nextWords = sentenceWordCounts[sentenceIdx];
-
-      if (chunkIdx === chunkSizes.length - 1) {
-        accumulatedSentences.push(sentences[sentenceIdx]);
-        accumulatedWords += nextWords;
-        sentenceIdx++;
-        continue;
-      }
-
-      const remainingChunks = chunkSizes.length - 1 - chunkIdx;
-      const remainingSentenceWords = sentenceWordCounts.slice(sentenceIdx).reduce((a, b) => a + b, 0);
-      const minNeeded = remainingSentenceWords - (remainingChunks * 3);
-
-      if (accumulatedWords > 0 && accumulatedWords + nextWords > targetWords * 1.5 && accumulatedWords >= minNeeded) {
-        break;
-      }
-
-      accumulatedSentences.push(sentences[sentenceIdx]);
-      accumulatedWords += nextWords;
+    const chunkSentences: string[] = [];
+    for (let i = 0; i < count && sentenceIdx < totalTranslationSentences; i++) {
+      chunkSentences.push(translationSentences[sentenceIdx]);
       sentenceIdx++;
-
-      if (accumulatedWords >= targetWords && accumulatedWords >= 1) {
-        break;
-      }
     }
 
-    result[chunkIdx] = accumulatedSentences.join(" ");
+    result[chunkIdx] = chunkSentences.join(" ");
   });
 
-  return result;
-}
-
-function splitSegmentTextPreservingPunctuation(text: string, maxWords: number): string[] {
-  const source = (text || "").trim();
-  if (!source) return [""];
-
-  const wordRegex = /[A-Za-z']+/g;
-  const matches = Array.from(source.matchAll(wordRegex));
-  if (matches.length <= maxWords) return [source];
-
-  const chunks: string[] = [];
-  for (let i = 0; i < matches.length; i += maxWords) {
-    const startMatch = matches[i];
-    const nextStartMatch = matches[i + maxWords];
-    const startIndex = startMatch?.index ?? 0;
-    const endIndex = nextStartMatch?.index ?? source.length;
-    chunks.push(source.slice(startIndex, endIndex).trim());
+  for (let i = 0; i < result.length; i++) {
+    if (!result[i] || result[i].trim() === "") {
+      result[i] = normalized;
+    }
   }
 
-  return chunks.filter(Boolean);
+  return result;
 }
 
 function enforceSegmentWordLimit(transcript: TranscriptSegment[]): TranscriptSegment[] {
@@ -279,15 +238,32 @@ function enforceSegmentWordLimit(transcript: TranscriptSegment[]): TranscriptSeg
 
     const hasWordsArray = Array.isArray(segment.words) && segment.words.length > 0;
     const wordIterations = hasWordsArray ? segment.words : splitTextIntoEstimatedWords(segment.text, segment.start, segment.end);
-    const textChunks = splitSegmentTextPreservingPunctuation(segment.text, MAX_WORDS_PER_SEGMENT);
+
+    const semanticChunks = splitTextIntoSemanticSegments(segment.text, MAX_WORDS_PER_SEGMENT);
     const chunks: Word[][] = [];
-    for (let i = 0; i < wordIterations.length; i += MAX_WORDS_PER_SEGMENT) {
-      chunks.push(wordIterations.slice(i, i + MAX_WORDS_PER_SEGMENT));
+    let wordIdx = 0;
+
+    for (const chunkText of semanticChunks) {
+      const chunkWords = chunkText.split(/\s+/).filter(Boolean).length;
+      const matchingWords = wordIterations.slice(wordIdx, wordIdx + chunkWords);
+      if (matchingWords.length > 0) {
+        chunks.push(matchingWords);
+        wordIdx += matchingWords.length;
+      }
+    }
+
+    if (wordIdx < wordIterations.length) {
+      const remaining = wordIterations.slice(wordIdx);
+      if (chunks.length > 0) {
+        chunks[chunks.length - 1].push(...remaining);
+      } else {
+        chunks.push(remaining);
+      }
     }
 
     const translations = splitTranslationByWordChunks(
       segment.translation || "",
-      chunks.map(chunk => chunk.length)
+      semanticChunks
     );
 
     chunks.forEach((chunk, idx) => {
@@ -295,7 +271,7 @@ function enforceSegmentWordLimit(transcript: TranscriptSegment[]): TranscriptSeg
       const last = chunk[chunk.length - 1];
       rebuilt.push({
         ...segment,
-        text: textChunks[idx] || chunk.map(w => w.text).join(" "),
+        text: semanticChunks[idx] || chunk.map(w => w.text).join(" "),
         translation: translations[idx] || "",
         start: first?.start ?? segment.start,
         end: last?.end ?? segment.end,
@@ -305,6 +281,68 @@ function enforceSegmentWordLimit(transcript: TranscriptSegment[]): TranscriptSeg
   }
 
   return rebuilt;
+}
+
+function alignSemanticSegmentsWithTimestamps(
+  semanticSegments: string[],
+  transcribedSegments: TranscriptSegment[],
+  originalText: string
+): TranscriptSegment[] {
+  const allTranscribedWords = transcribedSegments.flatMap(s => s.words || []);
+  if (allTranscribedWords.length === 0) {
+    return semanticSegments.map((segText) => ({
+      text: segText,
+      start: 0,
+      end: 0,
+      words: [],
+    }));
+  }
+
+  const originalWords = originalText.trim().split(/\s+/).filter(Boolean);
+  const totalOriginalWords = originalWords.length;
+  const totalTranscribedWords = allTranscribedWords.length;
+
+  const estimatedDuration = allTranscribedWords[allTranscribedWords.length - 1]?.end || 0;
+  const avgWordDuration = estimatedDuration / totalTranscribedWords;
+
+  const result: TranscriptSegment[] = [];
+  let transcribedWordIdx = 0;
+  let originalWordIdx = 0;
+
+  for (const segText of semanticSegments) {
+    const segWords = segText.split(/\s+/).filter(Boolean);
+    const segWordCount = segWords.length;
+    const matchedWords: Word[] = [];
+
+    for (let i = 0; i < segWordCount && transcribedWordIdx < totalTranscribedWords; i++) {
+      matchedWords.push(allTranscribedWords[transcribedWordIdx]);
+      transcribedWordIdx++;
+      originalWordIdx++;
+    }
+
+    if (matchedWords.length > 0) {
+      result.push({
+        text: segText,
+        start: matchedWords[0].start,
+        end: matchedWords[matchedWords.length - 1].end,
+        words: matchedWords,
+      });
+    } else {
+      const estimatedStart = originalWordIdx * avgWordDuration;
+      result.push({
+        text: segText,
+        start: estimatedStart,
+        end: estimatedStart + segWordCount * avgWordDuration,
+        words: segWords.map((w, i) => ({
+          text: w,
+          start: estimatedStart + i * avgWordDuration,
+          end: estimatedStart + (i + 1) * avgWordDuration,
+        })),
+      });
+    }
+  }
+
+  return result;
 }
 
 function splitTextIntoEstimatedWords(text: string, start: number, end: number): Word[] {
@@ -819,7 +857,6 @@ export default function App() {
   const [showAudioErrorModal, setShowAudioErrorModal] = useState(false);
   const [audioErrorMessage, setAudioErrorMessage] = useState("");
   const [showSyncModal, setShowSyncModal] = useState(false);
-  const [showGerarLicaoModal, setShowGerarLicaoModal] = useState(false);
   const [isSyncingVideo, setIsSyncingVideo] = useState(false);
   const [showMissingAudioModal, setShowMissingAudioModal] = useState(false);
   const [isSyncingAudio, setIsSyncingAudio] = useState(false);
@@ -974,68 +1011,6 @@ export default function App() {
 
   const [returnSegmentIndex, setReturnSegmentIndex] = useState<number | null>(null);
   const [externalJumpToSegmentIndex, setExternalJumpToSegmentIndex] = useState<number | null>(null);
-
-  const handleGerarPorTexto = async ({ title, text, voice }: { title: string; text: string; voice: string }) => {
-    setIsTranscribing(true);
-    setShowGerarLicaoModal(false);
-    try {
-      const { requestTtsAudio: requestTts } = await import("./services/geminiService");
-
-      // Generate full audio narration from the input text
-      const base64Audio = await requestTts(text, voice);
-
-      // Create audio blob from base64
-      const binaryStr = atob(base64Audio);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i);
-      }
-      const audioBlob = new Blob([bytes], { type: 'audio/mp3' });
-      const audioUrl = URL.createObjectURL(audioBlob);
-
-      // Same pipeline as audio lessons: AssemblyAI transcribes the TTS audio,
-      // then DeepSeek segments the transcribed text with translations (0.5s buffers via remedySegments)
-      const { transcribeAudio } = await import("./lib/gemini");
-      const transcript = enforceSegmentWordLimit(
-        await transcribeAudio(audioBlob, nativeLanguage, assemblyAiApiKey, deepseekApiKey, hasBillingEnabled)
-      );
-
-      const newTrack: AudioTrack = {
-        id: Date.now().toString(36) + Math.random().toString(36).substring(2),
-        title: title,
-        artist: "",
-        url: audioUrl,
-        coverUrl: `https://picsum.photos/seed/${title}/400/400`,
-        transcript: transcript,
-        language: currentLanguage
-      };
-
-      await saveTrack(newTrack, audioBlob);
-
-      setPlaylist((prev) => {
-        const newList = [...prev, newTrack];
-        setCurrentTrackIndex(newList.length - 1);
-        return newList;
-      });
-
-      if (isGoogleLoggedIn) {
-        syncTrackToDrive(newTrack);
-        setTimeout(() => evictCacheIfNeeded(), 500);
-      }
-
-      setCurrentView('lesson');
-    } catch (error: any) {
-      if (error.message === "QUOTA_EXCEEDED") {
-        setShowQuotaModal(true);
-      } else {
-        console.error("Text lesson generation failed:", error);
-        const errorMessage = typeof error === 'string' ? error : error?.message;
-        alert(`Erro ao gerar lição por texto: ${errorMessage || 'Falha ao processar. Tente novamente mais tarde.'}`);
-      }
-    } finally {
-      setIsTranscribing(false);
-    }
-  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -2333,8 +2308,9 @@ export default function App() {
                           <div className="space-y-3">
                             <button
                               onClick={async () => {
+                                const wasLoggedIn = isGoogleLoggedIn;
                                 const ok = await requireGoogleLogin();
-                                if (ok) setCurrentView('library');
+                                if (ok && wasLoggedIn) setCurrentView('library');
                               }}
                               className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group bg-[#161616] shadow-sm shadow-black/40"
                             >
@@ -2350,19 +2326,34 @@ export default function App() {
                             <button
                               onClick={async () => {
                                 const ok = await requireGoogleLogin();
-                                if (ok) setShowGerarLicaoModal(true);
+                                if (ok) fileInputRef.current?.click();
                               }}
                               disabled={isTranscribing}
-                              className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
+                              className="w-full flex items-center justify-center py-3 px-5 rounded-xl border-[1.5px] border-dashed border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20 transition-all group disabled:cursor-not-allowed bg-[#161616] shadow-sm shadow-black/40"
                             >
-                              <AudioLines className="w-8 h-8 mr-4 group-hover:scale-110 transition-transform text-[#827367]" />
+                              <motion.span
+                                animate={isTranscribing ? {
+                                  opacity: [1, 0.4, 1],
+                                  scale: [1, 1.1, 1],
+                                } : {}}
+                                transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                                className="inline-flex mr-4"
+                              >
+                                <AudioLines className="w-8 h-8 group-hover:scale-110 transition-transform text-[#827367]" />
+                              </motion.span>
                               <div className="flex flex-col items-center text-center">
-                                <span className="text-sm font-bold uppercase tracking-widest">
+                                <motion.span
+                                  animate={isTranscribing ? {
+                                    opacity: [1, 0.5, 1],
+                                  } : {}}
+                                  transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                                  className="text-sm font-bold uppercase tracking-widest"
+                                >
                                   {isTranscribing
                                     ? (transcribePercent > 90 ? "Sincronizando..." : `Progresso: ${Math.round(transcribePercent)}%`)
-                                    : "GERAR LIÇÃO (TEXTO OU ÁUDIO)"}
-                                </span>
-                                <span className="text-base font-normal opacity-70">Recomendado: 1 a 3 min. Máx: 5 min.</span>
+                                    : "GERAR LIÇÃO (ÁUDIO OU VÍDEO)"}
+                                </motion.span>
+                                <span className="text-base font-normal opacity-70">MP3, MP4, WebM, MOV e mais</span>
                               </div>
                             </button>
                           </div>
@@ -2680,10 +2671,13 @@ export default function App() {
                           href="https://platform.deepseek.com/usage"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-[#827367] hover:text-[#9a8c80] hover:bg-white/[0.04] transition-all group"
+                          className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[10px] font-bold text-orange-500/70 hover:text-orange-400 hover:bg-white/[0.04] transition-all group"
                         >
-                          <span className="uppercase tracking-widest">MEU USO (DEEPSEEK V3 INTELLIGENCE)</span>
-                          <ExternalLink className="w-3 h-3 text-[#827367] opacity-80 group-hover:opacity-100 transition-opacity" />
+                          <span className="uppercase tracking-widest">MONITORAR (DEEPSEEK V3 INTELLIGENCE)</span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-[8px] text-orange-500/50 group-hover:text-orange-400/70">EXTERNO</span>
+                            <ExternalLink className="w-3 h-3 text-orange-500/70 group-hover:text-orange-400 transition-opacity" />
+                          </span>
                         </a>
 
                         <a
@@ -3126,17 +3120,6 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Gerar Lição Modal */}
-        <GerarLicaoModal
-          isOpen={showGerarLicaoModal}
-          onClose={() => setShowGerarLicaoModal(false)}
-          onAudioSelected={() => {
-            setShowGerarLicaoModal(false);
-            fileInputRef.current?.click();
-          }}
-          onTextSubmit={handleGerarPorTexto}
-        />
 
         {/* Rate Limit Modal */}
         <RateLimitModal
