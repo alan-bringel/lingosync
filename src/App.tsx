@@ -414,6 +414,7 @@ export default function App() {
   const [isGoogleLoggedIn, setIsGoogleLoggedIn] = useState(googleDriveService.isLoggedIn());
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const syncDirectionRef = useRef<'upload' | 'download' | null>(null);
+  const isManualSyncRef = useRef(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const dirtyTracksRef = useRef<Set<string>>(new Set());
   const syncingTrackIdRef = useRef<string | null>(null);
@@ -785,6 +786,12 @@ export default function App() {
       setShowFlashcards(false);
     }
   }, [currentView]);
+
+  useEffect(() => {
+    if (!isSyncing) {
+      isManualSyncRef.current = false;
+    }
+  }, [isSyncing]);
 
   useEffect(() => {
     localStorage.setItem('lingosync_current_language', currentLanguage);
@@ -2076,6 +2083,7 @@ export default function App() {
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
               if (!isGoogleLoggedIn) return;
+              isManualSyncRef.current = true;
               if (track.syncStatus === 'missing_local' || track.syncStatus === 'cloud_only') {
                 downloadTrackFromDrive(track);
               } else {
@@ -3029,7 +3037,10 @@ export default function App() {
                           </p>
                           <Button
                             onClick={() => {
-                              if (currentTrack) downloadTrackFromDrive(currentTrack);
+                              if (currentTrack) {
+                                isManualSyncRef.current = true;
+                                downloadTrackFromDrive(currentTrack);
+                              }
                             }}
                             disabled={isSyncing === currentTrack?.id}
                             className="w-full bg-[#827367] hover:bg-[#9a8c80] text-gray-100 font-bold uppercase tracking-widest text-base h-10 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-lg shadow-[#827367]/10"
@@ -3156,7 +3167,7 @@ export default function App() {
         )}
 
         {/* Sync Progress Modal */}
-        {isSyncing && (
+        {isSyncing && isManualSyncRef.current && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
