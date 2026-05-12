@@ -228,6 +228,12 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     setStopTime(null);
     setShowTranslations({});
     setFocusSegmentIndex(0);
+    // Limpa destaque palavra por palavra residual ao sair do modo foco
+    if (lastActiveWordRef.current) {
+      const prevEl = document.querySelector(`[data-word-key="${lastActiveWordRef.current}"]`) as HTMLElement | null;
+      if (prevEl) prevEl.style.removeProperty('color');
+      lastActiveWordRef.current = null;
+    }
   }, [isMaximized]);
 
   // Playback settings
@@ -451,6 +457,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }
   }, [isEditModeGlobal]);
 
+  const getSegmentStartWithPreroll = (start: number) => Math.max(0, start - 0.5);
   const [stopTime, setStopTime] = useState<number | null>(null);
 
   // Active repeat state tracking
@@ -463,7 +470,6 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const transcriptRef = useRef(track.transcript);
 
   const [isSyncingTranslation, setIsSyncingTranslation] = useState<number | null>(null);
-  const getSegmentStartWithPreroll = (start: number) => Math.max(0, start - 0.5);
 
   useEffect(() => {
     transcriptRef.current = track.transcript;
@@ -522,6 +528,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const renderSegmentText = (text: string, isActive: boolean, segmentIdx: number) => {
     // Basic word split that preserves punctuation and contractions
     const pattern = /([a-zA-Z']+)/g;
+    if (!text) return null;
     const parts = text.split(pattern);
 
     // Active uses a slightly muted brown, Inactive uses a more discreet faded brown
@@ -918,64 +925,66 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }
     const stableTime = stableTimeRef.current;
 
-    // Word-by-word highlight via DOM direta (style.setProperty em vez de classList
-    // para evitar que o React remova a cor durante a reconciliação do className)
-    const segIdx = track.transcript.findIndex(s => stableTime >= s.start && stableTime <= s.end);
-    let activeKey: string | null = null;
-    if (segIdx !== -1) {
-      const seg = track.transcript[segIdx];
-      let wIdx: number | null = null;
-      if (seg.words?.length) {
-        const exact = seg.words.findIndex(w => stableTime >= w.start && stableTime <= w.end);
-        if (exact !== -1) {
-          wIdx = exact;
-        } else {
-          const wordCount = seg.words.length;
-          const segDur = seg.end - seg.start;
-          if (segDur > 0) {
-            const estimated = Math.floor((stableTime - seg.start) / (segDur / wordCount));
-            if (estimated >= 0 && estimated < wordCount) wIdx = estimated;
-          }
-        }
-      }
-      if (wIdx === null) {
-        const textWords = seg.text.trim().split(/\s+/).filter(w => w.length > 0);
-        if (textWords.length > 0) {
-          const segDur = seg.end - seg.start;
-          if (segDur > 0) {
-            const estimated = Math.floor((stableTime - seg.start) / (segDur / textWords.length));
-            if (estimated >= 0 && estimated < textWords.length) wIdx = estimated;
-          }
-        }
-      }
-      // Guarda monotônica: dentro do mesmo segmento, o índice da palavra nunca volta
-      if (wIdx !== null) {
-        const prevKey = lastActiveWordRef.current;
-        if (prevKey) {
-          const parts = prevKey.split('-');
-          if (parts.length === 2) {
-            const prevSeg = parseInt(parts[0], 10);
-            const prevWord = parseInt(parts[1], 10);
-            if (segIdx === prevSeg && wIdx < prevWord) {
-              wIdx = prevWord;
+    // Word-by-word highlight apenas no modo foco (isMaximized)
+    if (isMaximized) {
+      const segIdx = activeSegmentIndex !== null
+        ? activeSegmentIndex
+        : track.transcript.findIndex(s => stableTime >= s.start && stableTime <= s.end);
+      let activeKey: string | null = null;
+      if (segIdx !== -1) {
+        const seg = track.transcript[segIdx];
+        let wIdx: number | null = null;
+        if (seg.words?.length) {
+          const exact = seg.words.findIndex(w => stableTime >= w.start && stableTime <= w.end);
+          if (exact !== -1) {
+            wIdx = exact;
+          } else {
+            const wordCount = seg.words.length;
+            const segDur = seg.end - seg.start;
+            if (segDur > 0) {
+              const estimated = Math.max(0, Math.floor((stableTime - seg.start) / (segDur / wordCount)));
+              if (estimated < wordCount) wIdx = estimated;
             }
           }
         }
-      }
-      if (wIdx !== null) activeKey = `${segIdx}-${wIdx}`;
-    }
-    if (activeKey !== lastActiveWordRef.current) {
-      if (lastActiveWordRef.current) {
-        const prevEl = document.querySelector(`[data-word-key="${lastActiveWordRef.current}"]`) as HTMLElement | null;
-        if (prevEl) prevEl.style.removeProperty('color');
-      }
-      if (activeKey) {
-        const el = document.querySelector(`[data-word-key="${activeKey}"]`) as HTMLElement | null;
-        if (el) {
-          el.style.setProperty('color', '#b38cff', 'important');
+        if (wIdx === null) {
+          const textWords = seg.text.trim().split(/\s+/).filter(w => w.length > 0);
+          if (textWords.length > 0) {
+            const segDur = seg.end - seg.start;
+            if (segDur > 0) {
+              const estimated = Math.max(0, Math.floor((stableTime - seg.start) / (segDur / textWords.length)));
+              if (estimated < textWords.length) wIdx = estimated;
+            }
+          }
         }
+        if (wIdx !== null) {
+          const prevKey = lastActiveWordRef.current;
+          if (prevKey) {
+            const parts = prevKey.split('-');
+            if (parts.length === 2) {
+              const prevSeg = parseInt(parts[0], 10);
+              const prevWord = parseInt(parts[1], 10);
+              if (segIdx === prevSeg && wIdx < prevWord) {
+                wIdx = prevWord;
+              }
+            }
+          }
+        }
+        if (wIdx !== null) activeKey = `${segIdx}-${wIdx}`;
       }
-      lastActiveWordRef.current = activeKey;
+      if (activeKey !== lastActiveWordRef.current) {
+        if (lastActiveWordRef.current) {
+          const prevEl = document.querySelector(`[data-word-key="${lastActiveWordRef.current}"]`) as HTMLElement | null;
+          if (prevEl) prevEl.style.removeProperty('color');
+        }
+        if (activeKey) {
+          const el = document.querySelector(`[data-word-key="${activeKey}"]`) as HTMLElement | null;
+          if (el) {
+            el.style.setProperty('color', 'rgb(229, 231, 235)', 'important');
+          }
+        }
+        lastActiveWordRef.current = activeKey;
+      }
     }
 
     let currentActiveSpeed = globalSpeed;
@@ -1097,13 +1106,14 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     repeatsLeftRef.current = repeats === Infinity ? Infinity : Math.max(0, repeats - 1);
     setActiveSegmentIndex(index);
 
-    // O tempo de parada agora segue exatamente o 'end' do segmento, 
-    // que já possui 1 segundo de margem adicionado durante a geração.
+    // O tempo de parada segue exatamente o 'end' do segmento.
     setStopTime(end);
 
     const speed = globalSpeed;
 
-    // Add a tiny preroll to avoid clipping the first syllable on fresh seeks.
+    // 0.5s de preroll para evitar corte da primeira sílaba por buffer.
+    // O destaque palavra por palavra usa activeSegmentIndex diretamente
+    // (em vez de buscar por tempo), então não é afetado pelo preroll.
     const exactStart = getSegmentStartWithPreroll(start);
     stableTimeRef.current = exactStart;
 
@@ -1267,6 +1277,9 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   // Returns the segment index that should appear active/highlighted
   // Either because it's being narrated or because user clicked a word in dictionary mode
   const getActiveSegmentIndex = (segmentIdx: number): boolean => {
+    // When a specific segment is being narrated, always highlight it visually
+    if (activeSegmentIndex === segmentIdx) return true;
+    // During global play, fall back to time-based detection
     const segment = track.transcript[segmentIdx];
     if (currentTime >= segment.start && currentTime <= segment.end) return true;
     if (manuallyHighlightedSegment === segmentIdx) return true;
@@ -1407,6 +1420,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                   {(() => {
                     const segment = track.transcript[focusSegmentIndex];
                     const sIdx = focusSegmentIndex;
+                    if (!segment) return null;
                     return (
                       <div className="space-y-2">
                         <div className="flex justify-between items-start group/title pb-1">
@@ -1414,7 +1428,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                             onClick={(e) => handleSegmentClick(e, sIdx)}
                             className="text-[1.3rem] sm:text-xl leading-relaxed flex-1"
                           >
-                            {renderSegmentText(segment.text, true, sIdx)}
+                            {renderSegmentText(segment.text, false, sIdx)}
                           </div>
                           {isEditModeGlobal && (
                             <button
@@ -1593,7 +1607,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         ) : (
           <ScrollArea className="flex-1 min-h-0 px-4 sm:px-8 py-4">
             <div className="space-y-2 pb-8">
-              {track.transcript.map((segment, sIdx) => (
+              {Array.isArray(track.transcript) && track.transcript.map((segment, sIdx) => (
               <motion.div
                 key={sIdx}
                 id={`segment-${sIdx}`}
@@ -1710,40 +1724,42 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                         )}
                       </div>
 
-                      <div className="flex flex-col space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={(e) => toggleTranslation(sIdx, e)}
-                              className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
-                              title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
-                            >
-                              {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                            </button>
+                      {isMaximized && (
+                        <div className="flex flex-col space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-1">
+                              <button
+                                onClick={(e) => toggleTranslation(sIdx, e)}
+                                className="flex items-center text-[#827367] hover:text-[#9a8c80] transition-all w-fit p-2 hover:bg-[#827367]/5 rounded-full"
+                                title={showTranslations[sIdx] ? "Esconder Tradução" : "Mostrar Tradução"}
+                              >
+                                {showTranslations[sIdx] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </button>
+                            </div>
                           </div>
-                        </div>
 
-                        <AnimatePresence>
-                          {showTranslations[sIdx] && (
-                            <motion.p
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              onClick={() => {
-                                if (isDictionaryModeGlobal) {
-                                  playSegment(segment.start, segment.end, sIdx);
-                                }
-                              }}
-                              className={cn(
-                                "text-lg sm:text-base text-gray-500 italic font-serif leading-relaxed overflow-hidden",
-                                isDictionaryModeGlobal && "cursor-pointer hover:text-gray-200 transition-colors"
-                              )}
-                            >
-                              {segment.translation || "(Tradução indisponível para este segmento.)"}
-                            </motion.p>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                          <AnimatePresence>
+                            {showTranslations[sIdx] && (
+                              <motion.p
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                onClick={() => {
+                                  if (isDictionaryModeGlobal) {
+                                    playSegment(segment.start, segment.end, sIdx);
+                                  }
+                                }}
+                                className={cn(
+                                  "text-lg sm:text-base text-gray-500 italic font-serif leading-relaxed overflow-hidden",
+                                  isDictionaryModeGlobal && "cursor-pointer hover:text-gray-200 transition-colors"
+                                )}
+                              >
+                                {segment.translation || "(Tradução indisponível para este segmento.)"}
+                              </motion.p>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

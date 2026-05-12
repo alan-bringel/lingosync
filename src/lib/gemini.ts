@@ -266,7 +266,7 @@ export async function transcribeAudio(
   assemblyAiApiKey: string,
   deepseekApiKey: string,
   hasBillingEnabled?: boolean
-): Promise<TranscriptSegment[]> {
+): Promise<{ segments: TranscriptSegment[]; rawAssemblyWords: Word[] }> {
   if (!assemblyAiApiKey || assemblyAiApiKey.trim() === "") {
     throw new Error("AssemblyAI API Key não configurada.");
   }
@@ -294,11 +294,12 @@ export async function transcribeAudio(
   );
 
   // ── Step 3: Re-map original AssemblyAI word timestamps onto final segments ──
+  let segments: TranscriptSegment[] = translated;
   if (allAssemblyWords.length > 0) {
-    return alignWordsWithAssemblyTimestamps(translated, allAssemblyWords);
+    segments = alignWordsWithAssemblyTimestamps(translated, allAssemblyWords);
   }
 
-  return translated;
+  return { segments, rawAssemblyWords: allAssemblyWords };
 }
 
 /**
@@ -345,11 +346,8 @@ function alignWordsWithAssemblyTimestamps(
           if (segClean === nextClean ||
               (segClean.length > 2 && nextClean.length > 2 &&
                (segClean.startsWith(nextClean) || nextClean.startsWith(segClean)))) {
-            while (asmIdx < asmIdx + look) {
-              asmIdx++;
-            }
+            asmIdx = asmIdx + look + 1;
             matchedWords.push({ ...next });
-            asmIdx++;
             found = true;
             break;
           }
@@ -366,6 +364,19 @@ function alignWordsWithAssemblyTimestamps(
 
     return { ...segment, words: matchedWords };
   });
+}
+
+/**
+ * Re-aligns segment word timestamps using the original raw AssemblyAI words.
+ * Called after segment edits (e.g., splitting a segment) to restore precise
+ * word-by-word highlight synchronization.
+ */
+export function reAlignSegmentTimestamps(
+  segments: TranscriptSegment[],
+  rawAssemblyWords: Word[]
+): TranscriptSegment[] {
+  if (!rawAssemblyWords || rawAssemblyWords.length === 0) return segments;
+  return alignWordsWithAssemblyTimestamps(segments, rawAssemblyWords);
 }
 
 /**

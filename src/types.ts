@@ -29,6 +29,7 @@ export interface AudioTrack {
   url: string;
   coverUrl: string;
   transcript: TranscriptSegment[];
+  rawAssemblyWords?: Word[]; // Original AssemblyAI word timestamps for re-alignment after segment edits
   flashcards?: Flashcard[];
   knownWords?: string[]; // Array of lowercase text strings known by user
   youtubeId?: string;

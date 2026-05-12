@@ -12,7 +12,7 @@ import { Headphones, Loader2, Download, Upload, ArrowLeft, Trash2, Settings2, In
 // import { Button } from "@/components/ui/button";
 const Button = ({ children, className, variant, size, ...props }: any) => <button className={className} {...props}>{children}</button>;
 import { motion, AnimatePresence, useMotionValue } from "motion/react";
-import { transcribeAudio } from "./lib/gemini";
+import { transcribeAudio, reAlignSegmentTimestamps } from "./lib/gemini";
 import { cn } from "@/lib/utils";
 import { FlashcardsView } from "./components/FlashcardsView";
 import { saveTrack, getSavedTracks, deleteTrack, updateTrackMetadata, clearAllTracks, saveTrackVideo, removeTrackVideo, removeTrackAudio, saveLastDirectoryHandle, getLastDirectoryHandle } from "./lib/db";
@@ -1726,10 +1726,9 @@ export default function App() {
 
     setIsTranscribing(true);
     try {
-      let transcript;
-      transcript = enforceSegmentWordLimit(
-        await transcribeAudio(file, nativeLanguage, effectiveAssemblyKey, effectiveDeepseekKey, hasBillingEnabled)
-      );
+      const result = await transcribeAudio(file, nativeLanguage, effectiveAssemblyKey, effectiveDeepseekKey, hasBillingEnabled);
+      const transcript = enforceSegmentWordLimit(result.segments);
+      const rawAssemblyWords = result.rawAssemblyWords;
 
       const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'mkv'].includes(file.name.split('.').pop()?.toLowerCase() || '');
 
@@ -1740,6 +1739,7 @@ export default function App() {
         url: URL.createObjectURL(file),
         coverUrl: `https://picsum.photos/seed/${file.name}/400/400`,
         transcript: transcript,
+        rawAssemblyWords: rawAssemblyWords,
         isVideo: isVideo,
         audioFileName: file.name,
         language: currentLanguage
@@ -1789,6 +1789,12 @@ export default function App() {
     const trackId = currentTrack?.id;
     if (trackId) {
       const { url, ...updates } = updatedTrack;
+
+      // Re-align word timestamps when transcript is edited,
+      // so word-by-word highlight stays synchronized after segment edits.
+      if (updates.transcript && currentTrack?.rawAssemblyWords && currentTrack.rawAssemblyWords.length > 0) {
+        updates.transcript = reAlignSegmentTimestamps(updates.transcript, currentTrack.rawAssemblyWords);
+      }
 
       // Only stamp updatedAt for actual metadata changes (title, lessonNumber, etc.)
       // not for flashcards/knownWords updates
