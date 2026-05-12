@@ -2163,33 +2163,20 @@ export default function App() {
           <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden shrink-0 aspect-square bg-[#443a32]/20 border border-white/5 flex items-center justify-center">
             <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? index + 1}</span>
           </div>
-          <div className="ml-5 flex-1 overflow-hidden pr-8">
-            <p className={cn("text-xl font-semibold truncate transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
-              {track.title}
-            </p>
-            <div className={isSyncing === track.id ? 'visible' : 'invisible'}>
-              <div className="mt-2 space-y-1">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-[#827367]" />
-                  <span className="text-xs text-[#827367] font-medium">
-                    {syncDirectionRef.current === 'upload'
-                      ? 'Enviando para a nuvem'
-                      : 'Baixando da nuvem'}
-                    <span className="animate-dots inline-block ml-0.5">...</span>
-                    {' '}{downloadProgress[track.id] || 0}%
-                  </span>
-                </div>
-                <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
-                </div>
-              </div>
+          <div className="ml-5 flex-1 pr-8 relative h-14 sm:h-16">
+            <div className="absolute inset-0 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'missing_local' || track.syncStatus === 'error' ? 0 : 1 }}>
+              <p className={cn("text-xl font-semibold break-words whitespace-normal transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
+                {track.title}
+              </p>
             </div>
-            <div className={isSyncing === track.id ? 'invisible' : 'visible'}>
+            <div className="absolute inset-0 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'missing_local' ? 1 : 0, pointerEvents: track.syncStatus === 'missing_local' ? 'auto' : 'none' }}>
               {track.syncStatus === 'missing_local' && (
-                <p className="text-xs text-[#827367]/60 mt-1">Disponível na nuvem — clique para baixar</p>
+                <p className="text-xs text-[#827367]/60">Disponível na nuvem — clique para baixar</p>
               )}
+            </div>
+            <div className="absolute inset-0 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'error' ? 1 : 0, pointerEvents: track.syncStatus === 'error' ? 'auto' : 'none' }}>
               {track.syncStatus === 'error' && (
-                <p className="text-xs text-[#827367]/60 mt-1">Erro ao sincronizar</p>
+                <p className="text-xs text-[#827367]/60">Erro ao sincronizar</p>
               )}
             </div>
           </div>
@@ -3162,6 +3149,47 @@ export default function App() {
                   >
                     Confirmar
                   </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Sync Progress Modal */}
+        {isSyncing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-full max-w-sm bg-[#161616] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+            >
+              <div className="p-8 space-y-6">
+                <div className="flex items-center space-x-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-[#827367]" />
+                  <h3 className="text-lg font-bold text-gray-200">
+                    {syncDirectionRef.current === 'upload'
+                      ? 'Enviando para a nuvem'
+                      : 'Baixando da nuvem'}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full shrink-0 bg-[#443a32]/20 border border-white/5 flex items-center justify-center">
+                    <span className="text-base font-bold text-[#827367]/40 font-mono">
+                      {(playlist.find(t => t.id === isSyncing)?.lessonNumber ?? playlist.findIndex(t => t.id === isSyncing) + 1)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-400 flex-1 min-w-0">
+                    <span className="block truncate">{playlist.find(t => t.id === isSyncing)?.title || 'Carregando...'}</span>
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-[#827367] font-medium">
+                    <span>Progresso</span>
+                    <span>{downloadProgress[isSyncing] || 0}%</span>
+                  </div>
+                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                    <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[isSyncing] || 0}%` }} />
+                  </div>
                 </div>
               </div>
             </motion.div>
