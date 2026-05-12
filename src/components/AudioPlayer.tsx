@@ -581,7 +581,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   };
 
   const triggerSmartSync = async (idx: number) => {
-    if (!userApiKey || userApiKey.trim() === "") {
+    if (!deepseekApiKey || deepseekApiKey.trim() === "") {
       onMissingKey?.();
       return null;
     }

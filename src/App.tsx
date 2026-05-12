@@ -734,10 +734,11 @@ export default function App() {
 
   useEffect(() => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || undefined;
     if (clientId) {
-      googleDriveService.initialize(clientId).then(async () => {
-        const wasLoggedIn = localStorage.getItem("google_drive_access_token");
-        if (wasLoggedIn) {
+      googleDriveService.initialize(clientId, clientSecret).then(async () => {
+        const hasToken = localStorage.getItem("google_drive_access_token") || localStorage.getItem("google_drive_refresh_token");
+        if (hasToken) {
           const success = await googleDriveService.trySilentLogin();
           setIsGoogleLoggedIn(success);
         } else {
@@ -1310,7 +1311,6 @@ export default function App() {
       const updatedTrack = { ...track, knownWords: mergedKnown, flashcards: mergedFlashcards, ...mergedMetadata };
 
       syncLatestToRef(updatedTrack);
-      requestSyncImmediate(track.id);
 
       const metadataForDb: Record<string, any> = { knownWords: mergedKnown, flashcards: mergedFlashcards };
       if (mergedMetadata.title) metadataForDb.title = mergedMetadata.title;
@@ -2167,7 +2167,7 @@ export default function App() {
             <p className={cn("text-xl font-semibold truncate transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
               {track.title}
             </p>
-            {isSyncing === track.id && (
+            <div className={isSyncing === track.id ? 'visible' : 'invisible'}>
               <div className="mt-2 space-y-1">
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-3 h-3 animate-spin text-[#827367]" />
@@ -2183,13 +2183,15 @@ export default function App() {
                   <div className="bg-[#827367] h-full rounded-full transition-all duration-300" style={{ width: `${downloadProgress[track.id] || 0}%` }} />
                 </div>
               </div>
-            )}
-            {track.syncStatus === 'missing_local' && isSyncing !== track.id && (
-              <p className="text-xs text-[#827367]/60 mt-1">Disponível na nuvem — clique para baixar</p>
-            )}
-            {track.syncStatus === 'error' && isSyncing !== track.id && (
-              <p className="text-xs text-[#827367]/60 mt-1">Erro ao sincronizar — clique na nuvem para tentar novamente</p>
-            )}
+            </div>
+            <div className={isSyncing === track.id ? 'invisible' : 'visible'}>
+              {track.syncStatus === 'missing_local' && (
+                <p className="text-xs text-[#827367]/60 mt-1">Disponível na nuvem — clique para baixar</p>
+              )}
+              {track.syncStatus === 'error' && (
+                <p className="text-xs text-[#827367]/60 mt-1">Erro ao sincronizar</p>
+              )}
+            </div>
           </div>
 
           {/* Drag/Menu Icon - Two Lines */}
