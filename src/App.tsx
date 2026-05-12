@@ -1313,9 +1313,19 @@ export default function App() {
         }
       }
 
+      // Sync transcript alterations (segment splits/edits) between devices
+      const remoteTranscriptStr = JSON.stringify(remoteTrack.transcript);
+      const localTranscriptStr = JSON.stringify(track.transcript);
+      if (remoteTranscriptStr !== localTranscriptStr) {
+        changed = true;
+      }
+
       if (!changed) return;
 
       const updatedTrack = { ...track, knownWords: mergedKnown, flashcards: mergedFlashcards, ...mergedMetadata };
+      if (remoteTrack.transcript) {
+        updatedTrack.transcript = remoteTrack.transcript;
+      }
 
       syncLatestToRef(updatedTrack);
 
@@ -1326,6 +1336,9 @@ export default function App() {
       if (mergedMetadata.coverUrl) metadataForDb.coverUrl = mergedMetadata.coverUrl;
       if (mergedMetadata.language) metadataForDb.language = mergedMetadata.language;
       if (mergedMetadata.updatedAt) metadataForDb.updatedAt = mergedMetadata.updatedAt;
+      if (remoteTranscriptStr !== localTranscriptStr && remoteTrack.transcript) {
+        metadataForDb.transcript = remoteTrack.transcript;
+      }
 
       await updateTrackMetadata(track.id, metadataForDb);
       setPlaylist(prev => {
