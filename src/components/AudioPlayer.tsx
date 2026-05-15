@@ -525,14 +525,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     playSegment(segment.start, segment.end, idx);
   };
 
-  const renderSegmentText = (text: string, isActive: boolean, segmentIdx: number) => {
+  const renderSegmentText = (text: string, isActive: boolean, segmentIdx: number, isFocusMode: boolean = false) => {
     // Basic word split that preserves punctuation and contractions
     const pattern = /([a-zA-Z']+)/g;
     if (!text) return null;
     const parts = text.split(pattern);
 
     // Active uses a slightly muted brown, Inactive uses a more discreet faded brown
-    const knownColorClass = isActive ? "text-[#827367]" : "text-[#827367]/50";
+    // In focus mode, known words always use the vivid brown color
+    const knownColorClass = isFocusMode ? "text-[#827367]" : (isActive ? "text-[#827367]" : "text-[#827367]/50");
     const baseColorClass = isActive ? "text-gray-200" : "text-gray-400";
 
     return parts.map((part, i) => {
@@ -1428,7 +1429,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
                             onClick={(e) => handleSegmentClick(e, sIdx)}
                             className="text-[1.3rem] sm:text-xl leading-relaxed flex-1"
                           >
-                            {renderSegmentText(segment.text, false, sIdx)}
+                            {renderSegmentText(segment.text, false, sIdx, isMaximized)}
                           </div>
                           {isEditModeGlobal && (
                             <button

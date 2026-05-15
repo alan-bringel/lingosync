@@ -406,6 +406,9 @@ You must be as intelligent and context-aware as Gemini 1.5 Flash.
 4. **ADJUST ENGLISH BREAKS**: You have full authority to move English words between segments to ensure the translation is not split.
 5. **SIZE LIMITS**: 4 to 15 words per segment.
 6. **FIX TRANSCRIPTION ERRORS**: AssemblyAI sometimes mishears words (e.g., "the" instead of "that", "it's" instead of "its", "to" instead of "too"). If a word is contextually illogical but phonetically similar to a correct word, you MUST fix the English text in your output to ensure the lesson makes sense.
+7. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
+8. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. For example, "it" referring to "the world" (o mundo, masculine) must be translated as "ele", not "ela". "It" referring to "the story" (a história, feminine) must be "ela", not "ele". Identify the antecedent noun's gender in ${langName} and match it consistently.
+9. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
 
 ### ⚠️ NEVER DO THIS (WORD CROSSING VIOLATION):
 - Seg 1 English: "truth spoken in a simple" → Seg 1 ${langName}: "verdade dita de forma" ❌
@@ -721,6 +724,9 @@ CRITICAL RULES:
 4. Mirror the punctuation of each segment.
 5. DO NOT merge or split segments — keep the same number of segments.
 6. If a segment is a single word, translate it appropriately in context.
+7. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
+8. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. For example, "it" referring to "the world" (o mundo, masculine) must be translated as "ele", not "ela". "It" referring to "the story" (a história, feminine) must be "ela", not "ele". Identify the antecedent noun's gender in ${langName} and match it consistently.
+9. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
 
 Output MINIFIED JSON: [{ "text": string, "translation": string }]
 Order must match input exactly.`;

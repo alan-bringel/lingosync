@@ -40,7 +40,7 @@ Part 1 English: "${englishA}"
 Part 2 English: "${englishB}"
 
 CRITICAL: Return ONLY a MINIFIED JSON object: { "translationA": string, "translationB": string }. 
-Mirror punctuation. Ensure natural ${langName} flow in both parts.`;
+Mirror punctuation. Ensure natural ${langName} flow in both parts. NEVER add quotation marks around the translations. Pay attention to noun genders when translating pronouns.`;
 
     const resultText = await callDeepSeekChat(
       [{ role: "user", content: prompt }],
@@ -108,7 +108,7 @@ export async function smartAlignSegmentTranslation(
 English: "${englishText}"
 Current: "${currentTranslation}"
 Context: "${wholeEnglishTranscript.slice(0, 1000)}"
-CRITICAL: Use natural, idiomatic ${langName}. Mirror punctuation exactly. Return ONLY the translation string.`;
+CRITICAL: Use natural, idiomatic ${langName}. Mirror punctuation exactly. NEVER add quotation marks around the translation. Pay attention to noun genders when translating pronouns (e.g., "it" referring to "the world"/"o mundo" → "ele", not "ela"). Return ONLY the translation string.`;
 
     const resultText = await callDeepSeekChat(
       [{ role: "user", content: prompt }],
@@ -529,6 +529,9 @@ export async function generateLessonSegments(
 4. **ADJUST ENGLISH BREAKS**: You have full authority to move English words between segments to ensure the translation is not split.
 5. **SIZE LIMITS**: 4 to 15 words per segment.
 6. **MIRROR PUNCTUATION**: Mirror the punctuation of the English text EXACTLY in the ${langName} translation for each segment.
+7. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
+8. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. For example, "it" referring to "the world" (o mundo, masculine) must be translated as "ele", not "ela". "It" referring to "the story" (a história, feminine) must be "ela", not "ele". Identify the antecedent noun's gender in ${langName} and match it consistently.
+9. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
 
 ### ⚠️ NEVER DO THIS (WORD CROSSING VIOLATION):
 - Seg 1 English: "truth spoken in a simple" → Seg 1 ${langName}: "verdade dita de forma" ❌

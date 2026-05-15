@@ -2184,7 +2184,7 @@ export default function App() {
           <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden shrink-0 aspect-square bg-[#443a32]/20 border border-white/5 flex items-center justify-center">
             <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? index + 1}</span>
           </div>
-          <div className="ml-5 flex-1 pr-8 relative h-14 sm:h-16">
+          <div className="ml-5 flex-1 pr-16 relative h-14 sm:h-16">
             <div className="absolute inset-0 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'missing_local' || track.syncStatus === 'error' ? 0 : 1 }}>
               <p className={cn("text-xl font-semibold break-words whitespace-normal transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
                 {track.title}
@@ -2296,7 +2296,7 @@ export default function App() {
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="audio/*,video/*,.mp3,.wav,.m4a,.mp4,.webm,.mpeg,.ogg,.aac,.mov,.mkv" className="hidden" />
 
         <div className={cn(
-          "relative max-w-5xl mx-auto w-full px-4 sm:px-6 transition-all duration-500 flex flex-col min-h-0 flex-1",
+          "relative sm:max-w-5xl mx-auto w-full px-4 sm:px-6 transition-all duration-500 flex flex-col min-h-0 flex-1",
           currentView === 'lesson' ? "pt-2 pb-6 sm:pt-4 sm:pb-8" : "py-4 sm:py-8"
         )}>
           {isLoading ? (
@@ -2432,7 +2432,7 @@ export default function App() {
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.98 }}
-                    className="flex flex-col h-full max-w-5xl mx-auto w-full overflow-hidden relative"
+                    className="flex flex-col h-full sm:max-w-5xl mx-auto w-full overflow-hidden relative"
                   >
                     {!isMaximized && (
                       <div className="pb-4 flex items-center justify-between">
