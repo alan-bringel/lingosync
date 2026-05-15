@@ -1163,20 +1163,7 @@ export default function App() {
         .filter(t => t.driveFileId && !staleTracks.some(s => s.id === t.id))
         .map(t => t.driveFileId)
         .filter(Boolean);
-      
       const missingFiles = lsyncFiles.filter(f => !localDriveIds.includes(f.id) && !deletedDriveIdsRef.current.has(f.id));
-
-      // Clean up deletedDriveIdsRef for files that no longer exist on Drive
-      let cleaned = false;
-      for (const deletedId of deletedDriveIdsRef.current) {
-        if (!driveFileIds.has(deletedId)) {
-          deletedDriveIdsRef.current.delete(deletedId);
-          cleaned = true;
-        }
-      }
-      if (cleaned) {
-        localStorage.setItem('lingosync_deleted_drive_ids', JSON.stringify([...deletedDriveIdsRef.current]));
-      }
       
       if (missingFiles.length > 0) {
         const confirmRestore = await showConfirm(
@@ -1880,12 +1867,15 @@ export default function App() {
     if (!confirmed) return;
 
     if (deleteFromDrive && (track.driveFileId || track.driveAudioFileId)) {
+      // Always remember this file ID so it never reappears for download,
+      // regardless of whether the Drive deletion succeeds or fails.
+      if (track.driveFileId) {
+        deletedDriveIdsRef.current.add(track.driveFileId);
+        localStorage.setItem('lingosync_deleted_drive_ids', JSON.stringify([...deletedDriveIdsRef.current]));
+      }
+
       const driveDeleted = await deleteFromDriveWithRetry(track);
       if (!driveDeleted) {
-        if (track.driveFileId) {
-          deletedDriveIdsRef.current.add(track.driveFileId);
-          localStorage.setItem('lingosync_deleted_drive_ids', JSON.stringify([...deletedDriveIdsRef.current]));
-        }
         await showConfirm("Erro", "Não foi possível excluir da nuvem após várias tentativas. A lição será removida apenas localmente.");
       }
     }
