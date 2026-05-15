@@ -36,16 +36,35 @@ function getLanguageName(code: string): string {
 
 function normalizeTranslationPunctuationBySource(sourceText: string, translationText: string): string {
   const source = (sourceText || "").trim();
-  const translation = (translationText || "").trim();
+  let translation = (translationText || "").trim();
   if (!translation) return translation;
 
+  // ── Mirror MID-TEXT punctuation from source to translation ──
+  // For each punctuation mark in the source (not at end), ensure
+  // the translation has matching punctuation at a similar word position.
+  const srcTokens = source.match(/\S+/g) || [];
+  const translTokens = translation.match(/\S+/g) || [];
+  const maxIdx = Math.min(srcTokens.length, translTokens.length);
+
+  for (let i = 0; i < maxIdx; i++) {
+    const srcToken = srcTokens[i];
+    const trailingPunct = srcToken.match(/[.!?,;:]+$/)?.[0] || '';
+    if (trailingPunct) {
+      const translToken = translTokens[i];
+      if (!translToken.endsWith(trailingPunct)) {
+        translTokens[i] = translToken.replace(/[.!?,;:]*$/, '') + trailingPunct;
+      }
+    }
+  }
+  translation = translTokens.join(' ');
+
+  // ── Mirror ENDING punctuation ──
   const sourceEndsWithComma = /,\s*$/.test(source);
   const sourceEndsWithTerminal = /[.!?]\s*$/.test(source);
   const sourceEndingPunctuation = source.match(/[.!?,]\s*$/)?.[0]?.trim() || "";
 
   let normalized = translation;
 
-  // If source has no terminal punctuation, avoid introducing hard stop at the end.
   if (!sourceEndsWithTerminal && !sourceEndsWithComma) {
     normalized = normalized.replace(/[.!?,;:]+\s*$/, "");
   } else if (sourceEndingPunctuation) {
@@ -53,7 +72,6 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
     normalized = `${normalized}${sourceEndingPunctuation}`;
   }
 
-  // If source ends with comma, avoid period immediately before final clause in translation.
   if (sourceEndsWithComma) {
     normalized = normalized.replace(/([a-zA-ZÀ-ÿ0-9])\.\s+([A-ZÀ-Ý])/g, "$1, $2");
   }
@@ -405,13 +423,17 @@ You must be as intelligent and context-aware as Gemini 1.5 Flash.
 3. **NATURAL ${langName.toUpperCase()}**: Prioritize idiomatic, native-sounding ${langName}.
 4. **ADJUST ENGLISH BREAKS**: You have full authority to move English words between segments to ensure the translation is not split.
 5. **SIZE LIMITS**: 4 to 15 words per segment.
-6. **FIX TRANSCRIPTION ERRORS**: AssemblyAI sometimes mishears words (e.g., "the" instead of "that", "it's" instead of "its", "to" instead of "too"). If a word is contextually illogical but phonetically similar to a correct word, you MUST fix the English text in your output to ensure the lesson makes sense.
-7. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
-8. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. **Trace back to find the noun that the pronoun refers to**, identify its gender in ${langName}, and match the pronoun consistently. Examples:
+6. **MIRROR PUNCTUATION**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
+   - Example: "the world. He" → "o mundo. Ele" (NOT "o mundo Ele")
+   - Example: "the story? It" → "a história? Ela" (NOT "a história Ela")
+   - Example: "God said: let" → "Deus disse: deixe" (NOT "Deus disse deixe")
+7. **FIX TRANSCRIPTION ERRORS**: AssemblyAI sometimes mishears words (e.g., "the" instead of "that", "it's" instead of "its", "to" instead of "too"). If a word is contextually illogical but phonetically similar to a correct word, you MUST fix the English text in your output to ensure the lesson makes sense.
+8. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
+9. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. **Trace back to find the noun that the pronoun refers to**, identify its gender in ${langName}, and match the pronoun consistently. Examples:
    - "the world (o mundo, masculine) → rule over **it**" → "governar sobre **ele**" (NOT "ela")
    - "the story (a história, feminine) → read **it**" → "ler **ela**" (NOT "ele")
    - "God gave humans power to rule over **it**" ("it" = world/mundo/masculine) → "governar sobre **ele**"
-9. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
+10. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
 
 ### ⚠️ NEVER DO THIS (WORD CROSSING VIOLATION):
 - Seg 1 English: "truth spoken in a simple" → Seg 1 ${langName}: "verdade dita de forma" ❌
@@ -724,7 +746,10 @@ CRITICAL RULES:
 1. Translate EACH segment independently.
 2. Each translation must correspond EXACTLY to its English segment.
 3. Use natural, idiomatic ${langName}.
-4. Mirror the punctuation of each segment.
+4. **MIRROR PUNCTUATION EXACTLY**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
+   - Example: "the world. He" → "o mundo. Ele" (NOT "o mundo Ele")
+   - Example: "the story? It" → "a história? Ela" (NOT "a história Ela")
+   - Example: "God said: let" → "Deus disse: deixe" (NOT "Deus disse deixe")
 5. DO NOT merge or split segments — keep the same number of segments.
 6. If a segment is a single word, translate it appropriately in context.
 7. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
