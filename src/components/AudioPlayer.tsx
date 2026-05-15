@@ -1416,7 +1416,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
             className="flex-1 min-h-0 px-4 sm:px-8 pt-4 pb-0 flex flex-col overflow-hidden"
           >
             <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="w-full max-w-4xl mx-auto px-6 sm:px-10 py-4">
+              <div className="w-full sm:max-w-4xl mx-auto px-6 sm:px-10 py-4">
                 <div className="min-w-0" key={focusSegmentIndex}>
                   {(() => {
                     const segment = track.transcript[focusSegmentIndex];
