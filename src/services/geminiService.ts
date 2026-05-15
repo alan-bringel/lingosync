@@ -530,7 +530,10 @@ export async function generateLessonSegments(
 5. **SIZE LIMITS**: 4 to 15 words per segment.
 6. **MIRROR PUNCTUATION**: Mirror the punctuation of the English text EXACTLY in the ${langName} translation for each segment.
 7. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
-8. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. For example, "it" referring to "the world" (o mundo, masculine) must be translated as "ele", not "ela". "It" referring to "the story" (a história, feminine) must be "ela", not "ele". Identify the antecedent noun's gender in ${langName} and match it consistently.
+8. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. **Trace back to find the noun that the pronoun refers to**, identify its gender in ${langName}, and match the pronoun consistently. Examples:
+   - "the world (o mundo, masculine) → rule over **it**" → "governar sobre **ele**" (NOT "ela")
+   - "the story (a história, feminine) → read **it**" → "ler **ela**" (NOT "ele")
+   - "God gave humans power to rule over **it**" ("it" = world/mundo/masculine) → "governar sobre **ele**"
 9. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
 
 ### ⚠️ NEVER DO THIS (WORD CROSSING VIOLATION):

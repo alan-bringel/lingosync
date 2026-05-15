@@ -2184,18 +2184,18 @@ export default function App() {
           <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden shrink-0 aspect-square bg-[#443a32]/20 border border-white/5 flex items-center justify-center">
             <span className="text-base sm:text-lg font-bold text-[#827367]/40 font-mono">{track.lessonNumber ?? index + 1}</span>
           </div>
-          <div className="ml-5 flex-1 min-w-0 pr-16 overflow-hidden relative h-14 sm:h-16">
-            <div className="absolute inset-0 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'missing_local' || track.syncStatus === 'error' ? 0 : 1 }}>
+          <div className="ml-5 flex-1 min-w-0 relative h-14 sm:h-16">
+            <div className="absolute inset-y-0 left-0 right-16 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'missing_local' || track.syncStatus === 'error' ? 0 : 1 }}>
               <p className={cn("text-xl font-semibold break-words whitespace-normal w-full transition-colors", currentTrackIndex === index && currentView === 'lesson' ? "text-gray-200" : "text-gray-500 group-hover:text-gray-300")}>
                 {track.title}
               </p>
             </div>
-            <div className="absolute inset-0 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'missing_local' ? 1 : 0, pointerEvents: track.syncStatus === 'missing_local' ? 'auto' : 'none' }}>
+            <div className="absolute inset-y-0 left-0 right-16 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'missing_local' ? 1 : 0, pointerEvents: track.syncStatus === 'missing_local' ? 'auto' : 'none' }}>
               {track.syncStatus === 'missing_local' && (
                 <p className="text-xs text-[#827367]/60">Disponível na nuvem — clique para baixar</p>
               )}
             </div>
-            <div className="absolute inset-0 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'error' ? 1 : 0, pointerEvents: track.syncStatus === 'error' ? 'auto' : 'none' }}>
+            <div className="absolute inset-y-0 left-0 right-16 flex items-center transition-opacity duration-150" style={{ opacity: track.syncStatus === 'error' ? 1 : 0, pointerEvents: track.syncStatus === 'error' ? 'auto' : 'none' }}>
               {track.syncStatus === 'error' && (
                 <p className="text-xs text-[#827367]/60">Erro ao sincronizar</p>
               )}
