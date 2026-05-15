@@ -147,6 +147,10 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
   const longPressTimerRef = useRef<any>(null);
   const isLongPressRef = useRef(false);
   const handledByPointerRef = useRef(false);
+  const swipeContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartXRef = useRef<number>(0);
+  const touchStartYRef = useRef<number>(0);
+  const isSwipingRef = useRef<boolean>(false);
 
   const handleVideoClick = () => {
     if (handledByPointerRef.current) {
@@ -1287,6 +1291,58 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     return false;
   };
 
+  // Swipe horizontal no modo foco para navegar entre segmentos
+  useEffect(() => {
+    const el = swipeContainerRef.current;
+    if (!el || !isMaximized) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+      isSwipingRef.current = false;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!touchStartXRef.current) return;
+      const deltaX = e.touches[0].clientX - touchStartXRef.current;
+      const deltaY = e.touches[0].clientY - touchStartYRef.current;
+
+      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+        isSwipingRef.current = true;
+        e.preventDefault();
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isSwipingRef.current) return;
+      const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+      const SWIPE_THRESHOLD = 50;
+
+      if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+        stopNarrationRef.current();
+        if (deltaX > 0) {
+          setFocusSegmentIndex(prev => (prev - 1 + trackRef.current.transcript.length) % trackRef.current.transcript.length);
+        } else {
+          setFocusSegmentIndex(prev => (prev + 1) % trackRef.current.transcript.length);
+        }
+      }
+
+      touchStartXRef.current = 0;
+      touchStartYRef.current = 0;
+      isSwipingRef.current = false;
+    };
+
+    el.addEventListener('touchstart', handleTouchStart, { passive: true });
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isMaximized]);
+
   return (
     <div className="flex flex-col h-full bg-transparent sm:bg-[#0d0d0d] rounded-3xl border-[1.5px] border-white/10 overflow-hidden shadow-2xl">
       {!isMaximized && (
@@ -1409,6 +1465,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
         {/* Transcript Area */}
         {isMaximized ? (
           <div
+            ref={swipeContainerRef}
             onClick={() => {
               const segment = track.transcript[focusSegmentIndex];
               playSegment(segment.start, segment.end, focusSegmentIndex);
