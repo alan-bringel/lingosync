@@ -544,7 +544,10 @@ export async function generateLessonSegments(
    - Example: "So a lot of these images come from the last book of the Bible, but to understand them, you have to go back to the first book." →
      - Seg 1: "So a lot of these images come from the last book of the Bible," / "Então muitas dessas imagens vêm do último livro da Bíblia,"
      - Seg 2: "but to understand them, you have to go back to the first book." / "mas para entendê-las, você tem que voltar ao primeiro livro."
-7. **MIRROR PUNCTUATION**: Mirror the punctuation of the English text EXACTLY in the ${langName} translation for each segment.
+7. **MIRROR PUNCTUATION**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
+   - Example: "the world. He" → "o mundo. Ele" (NOT "o mundo Ele")
+   - Example: "the story? It" → "a história? Ela" (NOT "a história Ela")
+   - Example: "God said: let" → "Deus disse: deixe" (NOT "Deus disse deixe")
 8. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
 9. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. **Trace back to find the noun that the pronoun refers to**, identify its gender in ${langName}, and match the pronoun consistently. Examples:
    - "the world (o mundo, masculine) → rule over **it**" → "governar sobre **ele**" (NOT "ela")
