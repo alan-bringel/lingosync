@@ -275,96 +275,9 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
     }
   }
 
-  // ── 2.5 Split large segments (>15 words) at natural connectors ──
-  const MAX_WORDS_BEFORE_SPLIT = 15;
-  const splitResult: typeof result = [];
-  for (const segment of result) {
-    const engWords = segment.text.trim().split(/\s+/).filter(w => w.length > 0);
-    if (engWords.length <= MAX_WORDS_BEFORE_SPLIT) {
-      splitResult.push(segment);
-      continue;
-    }
-
-    const splitIndex = findBestSplitPoint(engWords);
-    if (splitIndex === -1) {
-      splitResult.push(segment);
-      continue;
-    }
-
-    // Ensure both parts have at least 4 words
-    const part1Len = splitIndex;
-    const part2Len = engWords.length - splitIndex;
-    if (part1Len < 4 || part2Len < 4) {
-      splitResult.push(segment);
-      continue;
-    }
-
-    // Split English text
-    const engPart1 = engWords.slice(0, splitIndex).join(' ');
-    const engPart2 = engWords.slice(splitIndex).join(' ');
-
-    // Split translation at proportional position
-    const translWords = (segment.translation || '').trim().split(/\s+/).filter(w => w.length > 0);
-    const ratio = splitIndex / engWords.length;
-    let translSplitIndex = Math.max(1, Math.min(translWords.length - 1, Math.round(ratio * translWords.length)));
-
-    // Adjust translation split to prefer a natural boundary too
-    if (translSplitIndex < translWords.length && translSplitIndex > 0) {
-      const nextWord = translWords[translSplitIndex];
-      if (/^(e|mas|ou|pois|porque|com|para|no|na|em|que)$/i.test(nextWord)) {
-        // keep connector at start of part 2 — perfect
-      } else if (translSplitIndex > 0) {
-        // Try to find a connector near the split point
-        let adjusted = -1;
-        for (let d = 0; d <= 3; d++) {
-          const forward = translSplitIndex + d;
-          const backward = translSplitIndex - d;
-          if (forward < translWords.length && /^(e|mas|ou|pois|porque|com|para|no|na|em|que)$/i.test(translWords[forward])) {
-            adjusted = forward;
-            break;
-          }
-          if (backward > 0 && /^(e|mas|ou|pois|porque|com|para|no|na|em|que)$/i.test(translWords[backward])) {
-            adjusted = backward;
-            break;
-          }
-        }
-        if (adjusted !== -1) translSplitIndex = adjusted;
-      }
-    }
-
-    const translPart1 = translWords.slice(0, translSplitIndex).join(' ');
-    const translPart2 = translWords.slice(translSplitIndex).join(' ');
-
-    // Split words array (timestamps)
-    const segWords = segment.words || [];
-    const wordsPart1 = segWords.slice(0, splitIndex);
-    const wordsPart2 = segWords.slice(splitIndex);
-
-    // Estimate start/end times
-    const seg1End = wordsPart1.length > 0 ? wordsPart1[wordsPart1.length - 1].end : segment.end;
-    const seg2Start = wordsPart2.length > 0 ? wordsPart2[0].start : segment.start;
-
-    console.log(`[LingoSync] PARTINDO segmento grande (${engWords.length} palavras): "${engPart1}" | "${engPart2}"`);
-
-    splitResult.push({
-      ...segment,
-      text: engPart1,
-      translation: translPart1,
-      words: wordsPart1,
-      end: seg1End,
-    });
-    splitResult.push({
-      ...segment,
-      text: engPart2,
-      translation: translPart2,
-      words: wordsPart2,
-      start: seg2Start,
-    });
-  }
-
   // 3. Final refinement: Subtract 0.5s from the end of each segment to prevent "word bleeding"
   const buffer = 0.5;
-  const remedied = splitResult.map((segment) => {
+  const remedied = result.map((segment) => {
     return {
       ...segment,
       start: Math.max(0, segment.start - buffer),
@@ -373,52 +286,6 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
   });
 
   return remedied;
-}
-
-/**
- * Finds the best index to split an array of English words at a natural connector.
- * Returns the index of the first word of part 2, or -1 if no good split point found.
- */
-function findBestSplitPoint(words: string[]): number {
-  if (words.length < 8) return -1;
-
-  const midPoint = Math.floor(words.length / 2);
-  const preferredMin = Math.max(3, Math.floor(words.length * 0.3));
-  const preferredMax = Math.min(words.length - 3, Math.ceil(words.length * 0.7));
-
-  let bestScore = -1;
-  let bestIndex = -1;
-
-  for (let i = 2; i < words.length; i++) {
-    const prevWord = words[i - 1];
-    const currWord = words[i];
-
-    // Check for natural break patterns
-    // Pattern 1: word ends with comma (e.g., "communicating,")
-    const endsWithComma = /,$/.test(prevWord);
-    // Pattern 2: current word is a connector (and, but, or, so, however, with, because, which)
-    const isConnector = /^(and|but|or|so|however|with|because|which)$/i.test(currWord);
-
-    if (!endsWithComma && !isConnector) continue;
-
-    // Score: higher when closer to middle
-    const distanceFromMid = Math.abs(i - midPoint);
-    let score = 100 - distanceFromMid * 6;
-
-    // Bonus for comma (stronger break)
-    if (endsWithComma) score += 25;
-    // Bonus for comma + connector (strongest break)
-    if (endsWithComma && isConnector) score += 20;
-    // Bonus for being in preferred range
-    if (i >= preferredMin && i <= preferredMax) score += 30;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestIndex = i;
-    }
-  }
-
-  return bestIndex;
 }
 
 function normalizeWordsForComparison(text: string): string[] {
