@@ -92,18 +92,64 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
 }
 
 /**
+ * Splits the words array at the given word count boundary.
+ * Returns two sub-arrays and computes precise segment start/end from word timestamps.
+ */
+function splitWordsArray(words: Word[], splitWordCount: number): { wordsA: Word[]; wordsB: Word[] } {
+  const safeCount = Math.min(splitWordCount, words.length);
+  return {
+    wordsA: words.slice(0, safeCount),
+    wordsB: words.slice(safeCount),
+  };
+}
+
+/**
+ * Computes segment start/end from its words array.
+ * Falls back to existing start/end if words array is empty.
+ */
+function deriveSegmentBounds(words: Word[], fallbackStart: number, fallbackEnd: number): { start: number; end: number } {
+  if (words.length === 0) return { start: fallbackStart, end: fallbackEnd };
+  const start = words[0].start;
+  const end = words[words.length - 1].end;
+  if (start === undefined || end === undefined || isNaN(start) || isNaN(end)) {
+    return { start: fallbackStart, end: fallbackEnd };
+  }
+  return { start, end };
+}
+
+/**
+ * Splits a translation text proportionally by word count (not character position).
+ */
+function splitTranslationByWordCount(transText: string, wordCountA: number, totalWords: number): { transA: string; transB: string } {
+  if (!transText) return { transA: "", transB: "" };
+  const transWords = transText.trim().split(/\s+/).filter(Boolean);
+  if (transWords.length <= 1) return { transA: transText, transB: "" };
+
+  // Proportion: how many translation words correspond to engA's word count
+  const targetCount = Math.max(1, Math.round((wordCountA / totalWords) * transWords.length));
+  const wordsA = transWords.slice(0, targetCount);
+  const wordsB = transWords.slice(targetCount);
+  return {
+    transA: wordsA.join(" "),
+    transB: wordsB.join(" "),
+  };
+}
+
+/**
  * Splits segments that exceed the word limit at natural break points
  * (colon, semicolon, connectors like "and", "but", "or", "so", "because").
+ * Properly splits the words array and derives accurate start/end from word timestamps.
  * This is a safety net — the AI should already split correctly per the prompt.
  */
 function splitLargeSegments(segments: TranscriptSegment[], maxWords: number = 15): TranscriptSegment[] {
   const result: TranscriptSegment[] = [];
 
-  const connectorPattern = /\s+(and\s+|but\s+|or\s+|so\s+|because\s+|however\s+|,\s+with\s+)/i;
+  const connectorPattern = /\s+(and\s+|but\s+|or\s+|so\s+|because\s+|however\s+|,\s+(with|in|on|at|for|by|from)\s+)/i;
   const colonSemicolonPattern = /[;:]\s+/;
 
   for (const segment of segments) {
-    const wordCount = segment.text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const textWords = segment.text.trim().split(/\s+/).filter(w => w.length > 0);
+    const wordCount = textWords.length;
     if (wordCount <= maxWords) {
       result.push(segment);
       continue;
@@ -111,6 +157,7 @@ function splitLargeSegments(segments: TranscriptSegment[], maxWords: number = 15
 
     const engText = segment.text;
     const transText = segment.translation || "";
+    const words = segment.words || [];
 
     // Try splitting at colon or semicolon first
     const punctMatch = engText.match(colonSemicolonPattern);
@@ -119,36 +166,31 @@ function splitLargeSegments(segments: TranscriptSegment[], maxWords: number = 15
       const engA = engText.slice(0, splitIdx).trim();
       const engB = engText.slice(splitIdx).trim();
 
-      if (engA.split(/\s+/).filter(Boolean).length >= 3 && engB.split(/\s+/).filter(Boolean).length >= 3) {
-        // Split translation proportionally at the same relative position
-        const transRatio = engText.slice(0, splitIdx).length / engText.length;
-        const transSplitPos = Math.floor(transRatio * transText.length);
-        const transSpacePos = transText.indexOf(' ', Math.max(0, transSplitPos - 5));
+      const engAWordCount = engA.split(/\s+/).filter(Boolean).length;
+      const engBWordCount = engB.split(/\s+/).filter(Boolean).length;
 
-        let transA: string, transB: string;
-        if (transSpacePos > 0 && transSpacePos < transText.length - 1) {
-          transA = transText.slice(0, transSpacePos + 1).trim();
-          transB = transText.slice(transSpacePos + 1).trim();
-        } else {
-          transA = transText;
-          transB = "";
-        }
+      if (engAWordCount >= 3 && engBWordCount >= 3) {
+        const { wordsA, wordsB } = splitWordsArray(words, engAWordCount);
+        const { start: startA, end: endA } = deriveSegmentBounds(wordsA, segment.start, segment.start + ((segment.end - segment.start) * (engA.length / engText.length)));
+        const { start: startB, end: endB } = deriveSegmentBounds(wordsB, segment.start + ((segment.end - segment.start) * (engA.length / engText.length)), segment.end);
 
-        const midTime = (segment.start + segment.end) / 2;
+        const { transA, transB } = splitTranslationByWordCount(transText, engAWordCount, wordCount);
 
         result.push({
           ...segment,
           text: engA,
           translation: transA,
-          end: midTime,
-          words: segment.words || [],
+          start: startA,
+          end: endA,
+          words: wordsA,
         });
         result.push({
           ...segment,
           text: engB,
           translation: transB,
-          start: midTime,
-          words: [],
+          start: startB,
+          end: endB,
+          words: wordsB,
         });
         continue;
       }
@@ -161,35 +203,31 @@ function splitLargeSegments(segments: TranscriptSegment[], maxWords: number = 15
       const engA = engText.slice(0, splitIdx).trim();
       const engB = engText.slice(splitIdx).trim();
 
-      if (engA.split(/\s+/).filter(Boolean).length >= 3 && engB.split(/\s+/).filter(Boolean).length >= 3) {
-        const transRatio = engA.length / engText.length;
-        const transSplitPos = Math.floor(transRatio * transText.length);
-        const transSpacePos = transText.indexOf(' ', Math.max(0, transSplitPos - 5));
+      const engAWordCount = engA.split(/\s+/).filter(Boolean).length;
+      const engBWordCount = engB.split(/\s+/).filter(Boolean).length;
 
-        let transA: string, transB: string;
-        if (transSpacePos > 0 && transSpacePos < transText.length - 1) {
-          transA = transText.slice(0, transSpacePos + 1).trim();
-          transB = transText.slice(transSpacePos + 1).trim();
-        } else {
-          transA = transText;
-          transB = "";
-        }
+      if (engAWordCount >= 3 && engBWordCount >= 3) {
+        const { wordsA, wordsB } = splitWordsArray(words, engAWordCount);
+        const { start: startA, end: endA } = deriveSegmentBounds(wordsA, segment.start, segment.start + ((segment.end - segment.start) * (engA.length / engText.length)));
+        const { start: startB, end: endB } = deriveSegmentBounds(wordsB, segment.start + ((segment.end - segment.start) * (engA.length / engText.length)), segment.end);
 
-        const midTime = (segment.start + segment.end) / 2;
+        const { transA, transB } = splitTranslationByWordCount(transText, engAWordCount, wordCount);
 
         result.push({
           ...segment,
           text: engA,
           translation: transA,
-          end: midTime,
-          words: segment.words || [],
+          start: startA,
+          end: endA,
+          words: wordsA,
         });
         result.push({
           ...segment,
           text: engB,
           translation: transB,
-          start: midTime,
-          words: [],
+          start: startB,
+          end: endB,
+          words: wordsB,
         });
         continue;
       }
@@ -505,7 +543,16 @@ function alignWordsWithAssemblyTimestamps(
       }
     }
 
-    return { ...segment, words: matchedWords };
+    // Derive precise segment start/end from the matched words' AssemblyAI timestamps,
+    // with a tiny gap to prevent clipping the first/last phoneme.
+    let alignedStart = segment.start;
+    let alignedEnd = segment.end;
+    const firstRealWord = matchedWords.find(w => w.start !== undefined && !isNaN(w.start));
+    const lastRealWord = [...matchedWords].reverse().find(w => w.end !== undefined && !isNaN(w.end));
+    if (firstRealWord) alignedStart = Math.max(0, firstRealWord.start - 0.02);
+    if (lastRealWord) alignedEnd = lastRealWord.end + 0.05;
+
+    return { ...segment, start: alignedStart, end: alignedEnd, words: matchedWords };
   });
 }
 
