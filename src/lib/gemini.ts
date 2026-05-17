@@ -240,9 +240,96 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
     }
   }
 
+  // ── 2.5 Split large segments (>15 words) at natural connectors ──
+  const MAX_WORDS_BEFORE_SPLIT = 15;
+  const splitResult: typeof result = [];
+  for (const segment of result) {
+    const engWords = segment.text.trim().split(/\s+/).filter(w => w.length > 0);
+    if (engWords.length <= MAX_WORDS_BEFORE_SPLIT) {
+      splitResult.push(segment);
+      continue;
+    }
+
+    const splitIndex = findBestSplitPoint(engWords);
+    if (splitIndex === -1) {
+      splitResult.push(segment);
+      continue;
+    }
+
+    // Ensure both parts have at least 4 words
+    const part1Len = splitIndex;
+    const part2Len = engWords.length - splitIndex;
+    if (part1Len < 4 || part2Len < 4) {
+      splitResult.push(segment);
+      continue;
+    }
+
+    // Split English text
+    const engPart1 = engWords.slice(0, splitIndex).join(' ');
+    const engPart2 = engWords.slice(splitIndex).join(' ');
+
+    // Split translation at proportional position
+    const translWords = (segment.translation || '').trim().split(/\s+/).filter(w => w.length > 0);
+    const ratio = splitIndex / engWords.length;
+    let translSplitIndex = Math.max(1, Math.min(translWords.length - 1, Math.round(ratio * translWords.length)));
+
+    // Adjust translation split to prefer a natural boundary too
+    if (translSplitIndex < translWords.length && translSplitIndex > 0) {
+      const nextWord = translWords[translSplitIndex];
+      if (/^(e|mas|ou|pois|porque|com|para|no|na|em|que)$/i.test(nextWord)) {
+        // keep connector at start of part 2 — perfect
+      } else if (translSplitIndex > 0) {
+        // Try to find a connector near the split point
+        let adjusted = -1;
+        for (let d = 0; d <= 3; d++) {
+          const forward = translSplitIndex + d;
+          const backward = translSplitIndex - d;
+          if (forward < translWords.length && /^(e|mas|ou|pois|porque|com|para|no|na|em|que)$/i.test(translWords[forward])) {
+            adjusted = forward;
+            break;
+          }
+          if (backward > 0 && /^(e|mas|ou|pois|porque|com|para|no|na|em|que)$/i.test(translWords[backward])) {
+            adjusted = backward;
+            break;
+          }
+        }
+        if (adjusted !== -1) translSplitIndex = adjusted;
+      }
+    }
+
+    const translPart1 = translWords.slice(0, translSplitIndex).join(' ');
+    const translPart2 = translWords.slice(translSplitIndex).join(' ');
+
+    // Split words array (timestamps)
+    const segWords = segment.words || [];
+    const wordsPart1 = segWords.slice(0, splitIndex);
+    const wordsPart2 = segWords.slice(splitIndex);
+
+    // Estimate start/end times
+    const seg1End = wordsPart1.length > 0 ? wordsPart1[wordsPart1.length - 1].end : segment.end;
+    const seg2Start = wordsPart2.length > 0 ? wordsPart2[0].start : segment.start;
+
+    console.log(`[LingoSync] PARTINDO segmento grande (${engWords.length} palavras): "${engPart1}" | "${engPart2}"`);
+
+    splitResult.push({
+      ...segment,
+      text: engPart1,
+      translation: translPart1,
+      words: wordsPart1,
+      end: seg1End,
+    });
+    splitResult.push({
+      ...segment,
+      text: engPart2,
+      translation: translPart2,
+      words: wordsPart2,
+      start: seg2Start,
+    });
+  }
+
   // 3. Final refinement: Subtract 0.5s from the end of each segment to prevent "word bleeding"
   const buffer = 0.5;
-  const remedied = result.map((segment) => {
+  const remedied = splitResult.map((segment) => {
     return {
       ...segment,
       start: Math.max(0, segment.start - buffer),
@@ -251,6 +338,52 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
   });
 
   return remedied;
+}
+
+/**
+ * Finds the best index to split an array of English words at a natural connector.
+ * Returns the index of the first word of part 2, or -1 if no good split point found.
+ */
+function findBestSplitPoint(words: string[]): number {
+  if (words.length < 8) return -1;
+
+  const midPoint = Math.floor(words.length / 2);
+  const preferredMin = Math.max(3, Math.floor(words.length * 0.3));
+  const preferredMax = Math.min(words.length - 3, Math.ceil(words.length * 0.7));
+
+  let bestScore = -1;
+  let bestIndex = -1;
+
+  for (let i = 2; i < words.length; i++) {
+    const prevWord = words[i - 1];
+    const currWord = words[i];
+
+    // Check for natural break patterns
+    // Pattern 1: word ends with comma (e.g., "communicating,")
+    const endsWithComma = /,$/.test(prevWord);
+    // Pattern 2: current word is a connector (and, but, or, so, however, with, because, which)
+    const isConnector = /^(and|but|or|so|however|with|because|which)$/i.test(currWord);
+
+    if (!endsWithComma && !isConnector) continue;
+
+    // Score: higher when closer to middle
+    const distanceFromMid = Math.abs(i - midPoint);
+    let score = 100 - distanceFromMid * 6;
+
+    // Bonus for comma (stronger break)
+    if (endsWithComma) score += 25;
+    // Bonus for comma + connector (strongest break)
+    if (endsWithComma && isConnector) score += 20;
+    // Bonus for being in preferred range
+    if (i >= preferredMin && i <= preferredMax) score += 30;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+
+  return bestIndex;
 }
 
 function normalizeWordsForComparison(text: string): string[] {
@@ -428,18 +561,25 @@ You must be as intelligent and context-aware as Gemini 1.5 Flash.
    - Example: "we watch God create" → "vemos Deus criar" (NOT "nós vemos Deus criar")
    - Example: "on His behalf" → "em Seu nome" (NOT "em Seu lugar")
 4. **ADJUST ENGLISH BREAKS**: You have full authority to move English words between segments to ensure the translation is not split.
-5. **SIZE LIMITS**: 4 to 15 words per segment.
-6. **MIRROR PUNCTUATION**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
+5. **SIZE LIMITS (CRITICAL — PREFER SHORTER SEGMENTS)**: 4 to 12 words per segment. PREFER segments closer to 8-10 words. NEVER exceed 15 words. Break long segments at natural connectors.
+6. **SPLIT AT NATURAL CONNECTORS**: When a sentence has a natural break (comma, "and", "but", "or", "so", "however", "with", "because", "which"), split it into two segments at that point. This makes the lesson easier to study.
+   - Example: "Genres are a unique style of communicating, with certain ones being more effective..." → 
+     - Seg 1: "Genres are a unique style of communicating," / "Gêneros são um estilo único de comunicação,"
+     - Seg 2: "with certain ones being more effective..." / "sendo alguns mais eficazes..."
+   - Example: "So a lot of these images come from the last book of the Bible, but to understand them, you have to go back to the first book." →
+     - Seg 1: "So a lot of these images come from the last book of the Bible," / "Então muitas dessas imagens vêm do último livro da Bíblia,"
+     - Seg 2: "but to understand them, you have to go back to the first book." / "mas para entendê-las, você tem que voltar ao primeiro livro."
+7. **MIRROR PUNCTUATION**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
    - Example: "the world. He" → "o mundo. Ele" (NOT "o mundo Ele")
    - Example: "the story? It" → "a história? Ela" (NOT "a história Ela")
    - Example: "God said: let" → "Deus disse: deixe" (NOT "Deus disse deixe")
-7. **FIX TRANSCRIPTION ERRORS**: AssemblyAI sometimes mishears words (e.g., "the" instead of "that", "it's" instead of "its", "to" instead of "too"). If a word is contextually illogical but phonetically similar to a correct word, you MUST fix the English text in your output to ensure the lesson makes sense.
-8. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
-9. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. **Trace back to find the noun that the pronoun refers to**, identify its gender in ${langName}, and match the pronoun consistently. Examples:
+8. **FIX TRANSCRIPTION ERRORS**: AssemblyAI sometimes mishears words (e.g., "the" instead of "that", "it's" instead of "its", "to" instead of "too"). If a word is contextually illogical but phonetically similar to a correct word, you MUST fix the English text in your output to ensure the lesson makes sense.
+9. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
+10. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. **Trace back to find the noun that the pronoun refers to**, identify its gender in ${langName}, and match the pronoun consistently. Examples:
    - "the world (o mundo, masculine) → rule over **it**" → "governar sobre **ele**" (NOT "ela")
    - "the story (a história, feminine) → read **it**" → "ler **ela**" (NOT "ele")
    - "God gave humans power to rule over **it**" ("it" = world/mundo/masculine) → "governar sobre **ele**"
-10. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
+11. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
 
 ### ⚠️ NEVER DO THIS (WORD CROSSING VIOLATION):
 - Seg 1 English: "truth spoken in a simple" → Seg 1 ${langName}: "verdade dita de forma" ❌
