@@ -67,16 +67,33 @@ Mirror punctuation. Ensure natural ${langName} flow in both parts. NEVER add quo
 
 function normalizeTranslationPunctuationBySource(sourceText: string, translationText: string): string {
   const source = (sourceText || "").trim();
-  const translation = (translationText || "").trim();
+  let translation = (translationText || "").trim();
   if (!translation) return translation;
 
+  // ── Mirror MID-TEXT punctuation from source to translation ──
+  const srcTokens = source.match(/\S+/g) || [];
+  const translTokens = translation.match(/\S+/g) || [];
+  const maxIdx = Math.min(srcTokens.length, translTokens.length);
+
+  for (let i = 0; i < maxIdx; i++) {
+    const srcToken = srcTokens[i];
+    const trailingPunct = srcToken.match(/[.!?,;:]+$/)?.[0] || '';
+    if (trailingPunct) {
+      const translToken = translTokens[i];
+      if (!translToken.endsWith(trailingPunct)) {
+        translTokens[i] = translToken.replace(/[.!?,;:]*$/, '') + trailingPunct;
+      }
+    }
+  }
+  translation = translTokens.join(' ');
+
+  // ── Mirror ENDING punctuation ──
   const sourceEndsWithComma = /,\s*$/.test(source);
   const sourceEndsWithTerminal = /[.!?]\s*$/.test(source);
   const sourceEndingPunctuation = source.match(/[.!?,]\s*$/)?.[0]?.trim() || "";
 
   let normalized = translation;
 
-  // If source has no terminal punctuation, avoid introducing hard stop at the end.
   if (!sourceEndsWithTerminal && !sourceEndsWithComma) {
     normalized = normalized.replace(/[.!?,;:]+\s*$/, "");
   } else if (sourceEndingPunctuation) {
@@ -84,7 +101,6 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
     normalized = `${normalized}${sourceEndingPunctuation}`;
   }
 
-  // If source ends with comma, avoid period immediately before final clause in translation.
   if (sourceEndsWithComma) {
     normalized = normalized.replace(/([a-zA-ZÀ-ÿ0-9])\.\s+([A-ZÀ-Ý])/g, "$1, $2");
   }
@@ -648,7 +664,11 @@ Process this text following all the rules above and return ONLY a JSON array of 
       }
     }
 
-    return result;
+    // Normalize punctuation for every segment
+    return result.map(segment => ({
+      ...segment,
+      translation: normalizeTranslationPunctuationBySource(segment.text, segment.translation || "")
+    }));
   } catch (error: any) {
     console.error("generateLessonSegments failed:", error);
     throw new Error(`Falha ao gerar segmentos: ${error.message}`);

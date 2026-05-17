@@ -689,7 +689,11 @@ Output MINIFIED JSON array: [{ "text": string, "translation": string, "start": n
     });
 
     console.log("[LingoSync] IA Bruta (DeepSeek):", cleaned.length, "segmentos.");
-    const final = remedySegments(cleaned);
+    const remedied = remedySegments(cleaned);
+    const final = remedied.map(segment => ({
+      ...segment,
+      translation: normalizeTranslationPunctuationBySource(segment.text, segment.translation || "")
+    }));
     console.log("[LingoSync] IA Limpa (Pós-Processada):", final.length, "segmentos.");
     return final;
   } catch (error: any) {
