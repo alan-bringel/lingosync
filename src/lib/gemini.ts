@@ -39,48 +39,11 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
   let translation = (translationText || "").trim();
   if (!translation) return translation;
 
-  // ── Mirror MID-TEXT punctuation using RATIO-based alignment ──
-  // Token-level alignment fails for English↔Portuguese because word
-  // counts and ordering differ (e.g. "the Lord" = 2 EN tokens vs
-  // "do Senhor" = 2 PT tokens but offset).  Using ratio of word
-  // position avoids misplacing punctuation on the wrong word.
-  const srcWords = source.match(/\S+/g) || [];
-  const translWords = translation.match(/\S+/g) || [];
-
-  if (srcWords.length > 0 && translWords.length > 0) {
-    for (let si = 0; si < srcWords.length; si++) {
-      const trailingPunct = srcWords[si].match(/[.!?,;:]+$/)?.[0] || '';
-      if (!trailingPunct) continue;
-      // Skip the very last word — ending punctuation handled separately below
-      if (si >= srcWords.length - 1) continue;
-
-      // Map source word index to translation word index by ratio
-      const ratio = si / srcWords.length;
-      let ti = Math.round(ratio * translWords.length);
-      ti = Math.max(0, Math.min(translWords.length - 1, ti));
-
-      // Fine-tune: search ±1 word around the ratio position
-      let bestDist = Infinity;
-      let bestTi = ti;
-      const searchStart = Math.max(0, ti - 1);
-      const searchEnd = Math.min(translWords.length - 1, ti + 1);
-      for (let t = searchStart; t <= searchEnd; t++) {
-        const dist = Math.abs(t / translWords.length - ratio);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestTi = t;
-        }
-      }
-
-      const translToken = translWords[bestTi];
-      if (!translToken.endsWith(trailingPunct)) {
-        translWords[bestTi] = translToken.replace(/[.!?,;:]*$/, '') + trailingPunct;
-      }
-    }
-    translation = translWords.join(' ');
-  }
-
-  // ── Mirror ENDING punctuation ──
+  // ── Mirror ENDING punctuation only ──
+  // Mid-text punctuation alignment is NOT reliable for English↔Portuguese
+  // because word counts and ordering differ between languages.
+  // The DeepSeek prompt already includes MIRROR PUNCTUATION rules.
+  // Ending punctuation mirror is a safe safety net.
   const sourceEndsWithComma = /,\s*$/.test(source);
   const sourceEndsWithTerminal = /[.!?]\s*$/.test(source);
   const sourceEndingPunctuation = source.match(/[.!?,]\s*$/)?.[0]?.trim() || "";
@@ -95,7 +58,6 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
   }
 
   if (sourceEndsWithComma) {
-    // Only change the FINAL period to a comma — not mid-text sentence boundaries
     normalized = normalized.replace(/\.\s*$/, ',');
   }
 
