@@ -487,7 +487,10 @@ Every word in the English segment and EVERY word in the ${langName} segment must
 
 ### ⚠️ CRITICAL — SIZE LIMITS: NEVER generate a segment with more than 15 words. Split long segments at natural breaks like colons, commas, or connectors. Example: "who offers them a promise: You could define good and evil" MUST be split into two segments at the colon.
 
-### ⚠️ CRITICAL — MIRROR PUNCTUATION: The translation MUST preserve ALL punctuation marks (.,!?:;) from the English text at the SAME positions. Never omit a period, comma, or any punctuation that exists in the English. This is MANDATORY, not optional.
+### ⚠️ CRITICAL — MIRROR PUNCTUATION: YOU MUST NEVER IGNORE THIS RULE. The translation MUST preserve EVERY punctuation mark (.,!?:;) from the English text at the EXACT corresponding position in the Portuguese text. Look at each English punctuation mark and place the SAME mark at the SAME position in the translation. A missing period or comma is a CRITICAL ERROR.
+   - Example: "the Lord. It" -> "o Senhor. É" (you MUST keep the period after Senhor because it exists after Lord)
+   - Example: "God said: let" -> "Deus disse: deixe" (you MUST keep the colon)
+   - NEVER write "o Senhor É" when English has "the Lord. It" — the period is required.
 
 Output MINIFIED JSON array: [{ "text": string, "translation": string, "start": number, "end": number, "words": [{ "text": string, "start": number, "end": number }] }]`;
 
