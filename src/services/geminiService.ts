@@ -645,7 +645,11 @@ Process this text following all the rules above and return ONLY a JSON array of 
         const englishContinuationStart = ["to ","the ","a ","an ","and ","but ","or ","so ","because ","that ","which ","in ","on ","at ","for ","with ","by ","from ","of ","about ","is ","are ","was ","were ","has ","have ","it ","he ","she ","they ","we ","you ","this ","that ","as ","if ","when ","while ","although ","another ","some ","any ","each ","every ","into ","through ","during ","without "];
         const startsWithContinuationEnglish = englishContinuationStart.some(prefix => currText.startsWith(prefix));
 
-        if (endsWithDanglingEnglish || startsWithContinuationEnglish) {
+        // ─── Intentional break connectors — these are GOOD split points ───
+        const intentionalBreakPrefixes = ["but ", "and ", "or ", "so ", "because "];
+        const isIntentionalBreak = wordCount >= 4 && intentionalBreakPrefixes.some(p => currText.startsWith(p));
+
+        if (!isIntentionalBreak && (endsWithDanglingEnglish || startsWithContinuationEnglish)) {
           shouldMerge = true;
         }
       }

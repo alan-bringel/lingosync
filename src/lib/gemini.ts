@@ -203,8 +203,20 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
       
       const startsWithContinuationPortuguese = portugueseContinuationStart.some(prefix => currTrans.startsWith(prefix));
       
-      // Merge if ANY indicator suggests a broken segment boundary
-      if (endsWithDanglingEnglish || endsWithDanglingPortuguese || 
+      // ─── Intentional break connectors — these are GOOD split points ───
+      const intentionalBreakPrefixes = ["but ", "and ", "or ", "so ", "because "];
+      const porIntentionalBreakPrefixes = ["mas ", "e ", "ou ", "porque "];
+      
+      const isIntentionalBreak = wordCount >= 4 && (
+        intentionalBreakPrefixes.some(p => currText.startsWith(p)) ||
+        porIntentionalBreakPrefixes.some(p => currTrans.startsWith(p))
+      );
+      
+      // Merge only for dangling ends, not for intentional connector splits
+      if (isIntentionalBreak) {
+        // This is a deliberate split at a natural connector — keep it
+        console.log(`[LingoSync] DIVISAO INTENCIONAL: Keeping "${current.text}" as separate segment (connector split).`);
+      } else if (endsWithDanglingEnglish || endsWithDanglingPortuguese || 
           startsWithContinuationEnglish || startsWithContinuationPortuguese) {
         shouldMerge = true;
       }
