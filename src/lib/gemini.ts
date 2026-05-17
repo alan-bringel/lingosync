@@ -42,19 +42,28 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
   // ── Mirror ENDING punctuation ──
   const sourceEndsWithComma = /,\s*$/.test(source);
   const sourceEndsWithTerminal = /[.!?]\s*$/.test(source);
-  const sourceEndingPunctuation = source.match(/[.!?,]\s*$/)?.[0]?.trim() || "";
+  const sourceEndsWithColonSemicolon = /[;:]\s*$/.test(source);
+  const sourceEndingPunctuation = source.match(/[.!?,;:]\s*$/)?.[0]?.trim() || "";
 
   let normalized = translation;
 
-  if (!sourceEndsWithTerminal && !sourceEndsWithComma) {
+  if (sourceEndsWithColonSemicolon) {
+    // Preserve colon/semicolon ending: remove whatever ending punctuation exists,
+    // then append the correct one from source
     normalized = normalized.replace(/[.!?,;:]+\s*$/, "");
-  } else if (sourceEndingPunctuation) {
+    if (sourceEndingPunctuation) {
+      normalized = `${normalized}${sourceEndingPunctuation}`;
+    }
+  } else if (sourceEndsWithTerminal || sourceEndsWithComma) {
     normalized = normalized.replace(/[.!?,;:]+\s*$/, "");
-    normalized = `${normalized}${sourceEndingPunctuation}`;
-  }
-
-  if (sourceEndsWithComma) {
-    normalized = normalized.replace(/\.\s*$/, ',');
+    if (sourceEndingPunctuation) {
+      normalized = `${normalized}${sourceEndingPunctuation}`;
+    }
+    if (sourceEndsWithComma) {
+      normalized = normalized.replace(/\.\s*$/, ',');
+    }
+  } else {
+    normalized = normalized.replace(/[.!?,;:]+\s*$/, "");
   }
 
   // ── Mirror MID-TEXT punctuation ──
@@ -390,6 +399,34 @@ function wordCouldTranslate(ptWord: string, enWord: string): boolean {
 
   const possible = translationMap[ptWord];
   return possible ? possible.includes(enWord) : false;
+}
+
+/**
+ * Fixes Portuguese capitalization after colon or semicolon.
+ * In Portuguese, the word after : or ; starts with lowercase (not a proper noun).
+ * English convention often uses uppercase, so the AI model may carry that over.
+ */
+function fixPortugueseCapitalizationAfterColon(segments: TranscriptSegment[]): TranscriptSegment[] {
+  return segments.map((segment, i) => {
+    if (i === 0 || !segment.translation) return segment;
+
+    const prevText = segments[i - 1].text.trim();
+    const prevTrans = (segments[i - 1].translation || "").trim();
+    const prevEndsWithColon = /[;:]\s*$/.test(prevText) || /[;:]\s*$/.test(prevTrans);
+    if (!prevEndsWithColon) return segment;
+
+    const trans = segment.translation.trim();
+    const firstChar = trans[0];
+    if (!firstChar) return segment;
+
+    const upperFirst = firstChar.toUpperCase();
+    const lowerFirst = firstChar.toLowerCase();
+    if (firstChar === upperFirst && firstChar !== lowerFirst) {
+      return { ...segment, translation: lowerFirst + trans.slice(1) };
+    }
+
+    return segment;
+  });
 }
 
 /**
@@ -933,13 +970,15 @@ Output MINIFIED JSON array: [{ "text": string, "translation": string, "start": n
     const remedied = remedySegments(cleaned);
     const splitted = splitLargeSegments(remedied, 15);
     const trimmed = trimBleedingTranslations(splitted);
-    if (trimmed.length > remedied.length) {
-      console.log(`[LingoSync] Quebra de segmentos grandes: ${remedied.length} → ${trimmed.length} segmentos.`);
-    }
-    const final = trimmed.map(segment => ({
+    const normalized = trimmed.map(segment => ({
       ...segment,
       translation: normalizeTranslationPunctuationBySource(segment.text, segment.translation || "")
     }));
+    const capitalized = fixPortugueseCapitalizationAfterColon(normalized);
+    if (capitalized.length > remedied.length) {
+      console.log(`[LingoSync] Quebra de segmentos grandes: ${remedied.length} → ${capitalized.length} segmentos.`);
+    }
+    const final = capitalized;
     console.log("[LingoSync] IA Limpa (Pós-Processada):", final.length, "segmentos.");
     return final;
   } catch (error: any) {
@@ -1089,7 +1128,7 @@ ${JSON.stringify(compactChunks)}`;
         if (!response.text) throw new Error("Translation failed.");
         let cleanText = response.text.replace(/```json/g, "").replace(/```/g, "").trim();
         const translated = JSON.parse(cleanText) as TranscriptSegment[];
-        return translated.map((segment) => {
+        const normalized = translated.map((segment) => {
           // Buffers: -0.1s at start to catch the first syllable, +0.5s at end for natural decay
           const bufferedStart = Math.max(0, (segment.start || 0) - 0.1);
           const bufferedEnd = (segment.end || 0) + 0.5;
@@ -1101,6 +1140,7 @@ ${JSON.stringify(compactChunks)}`;
             translation: normalizeTranslationPunctuationBySource(segment.text, segment.translation || "")
           };
         });
+        return fixPortugueseCapitalizationAfterColon(normalized);
       } catch (error: any) {
         if (isQuotaError(error)) throw new Error("QUOTA_EXCEEDED");
         console.error("Translation logic failed:", error);
@@ -1207,7 +1247,7 @@ Return ONLY valid JSON.`;
       throw new Error("DeepSeek não retornou traduções.");
     }
 
-    return segments.map((segment, idx) => {
+    const result = segments.map((segment, idx) => {
       const translated = translations[idx] || {};
       const translationText = translated.translation || translations[idx] || "";
 
@@ -1220,6 +1260,7 @@ Return ONLY valid JSON.`;
         translation: normalizeTranslationPunctuationBySource(segment.text, translationText || segment.text),
       };
     });
+    return fixPortugueseCapitalizationAfterColon(result);
   } catch (error: any) {
     console.error("[translateTextSegments] DeepSeek error:", error);
     return segments.map(segment => ({

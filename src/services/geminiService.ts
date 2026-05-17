@@ -70,26 +70,29 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
   let translation = (translationText || "").trim();
   if (!translation) return translation;
 
-  // ── Mirror ENDING punctuation only ──
-  // Mid-text punctuation alignment is NOT reliable for English↔Portuguese
-  // because word counts and ordering differ between languages.
-  // The DeepSeek prompt already includes MIRROR PUNCTUATION rules.
-  // Ending punctuation mirror is a safe safety net.
+  // ── Mirror ENDING punctuation ──
   const sourceEndsWithComma = /,\s*$/.test(source);
   const sourceEndsWithTerminal = /[.!?]\s*$/.test(source);
-  const sourceEndingPunctuation = source.match(/[.!?,]\s*$/)?.[0]?.trim() || "";
+  const sourceEndsWithColonSemicolon = /[;:]\s*$/.test(source);
+  const sourceEndingPunctuation = source.match(/[.!?,;:]\s*$/)?.[0]?.trim() || "";
 
   let normalized = translation;
 
-  if (!sourceEndsWithTerminal && !sourceEndsWithComma) {
+  if (sourceEndsWithColonSemicolon) {
     normalized = normalized.replace(/[.!?,;:]+\s*$/, "");
-  } else if (sourceEndingPunctuation) {
+    if (sourceEndingPunctuation) {
+      normalized = `${normalized}${sourceEndingPunctuation}`;
+    }
+  } else if (sourceEndsWithTerminal || sourceEndsWithComma) {
     normalized = normalized.replace(/[.!?,;:]+\s*$/, "");
-    normalized = `${normalized}${sourceEndingPunctuation}`;
-  }
-
-  if (sourceEndsWithComma) {
-    normalized = normalized.replace(/\.\s*$/, ',');
+    if (sourceEndingPunctuation) {
+      normalized = `${normalized}${sourceEndingPunctuation}`;
+    }
+    if (sourceEndsWithComma) {
+      normalized = normalized.replace(/\.\s*$/, ',');
+    }
+  } else {
+    normalized = normalized.replace(/[.!?,;:]+\s*$/, "");
   }
 
   return normalized;
@@ -677,12 +680,34 @@ Process this text following all the rules above and return ONLY a JSON array of 
     }
 
     // Normalize punctuation for every segment
-    return result.map(segment => ({
+    const normalized = result.map(segment => ({
       ...segment,
       translation: normalizeTranslationPunctuationBySource(segment.text, segment.translation || "")
     }));
+
+    // Fix Portuguese capitalization after colon/semicolon
+    const withCapitalization = normalized.map((segment, i) => {
+      if (i === 0 || !segment.translation) return segment;
+      const prevText = (normalized[i - 1].translation || "").trim();
+      const prevEngText = (normalized[i - 1].text || "").trim();
+      const prevEndsWithColon = /[;:]\s*$/.test(prevText) || /[;:]\s*$/.test(prevEngText);
+      if (!prevEndsWithColon) return segment;
+      const trans = segment.translation.trim();
+      const firstChar = trans[0];
+      if (!firstChar) return segment;
+      const upperFirst = firstChar.toUpperCase();
+      const lowerFirst = firstChar.toLowerCase();
+      if (firstChar === upperFirst && firstChar !== lowerFirst) {
+        return { ...segment, translation: lowerFirst + trans.slice(1) };
+      }
+      return segment;
+    });
+
+    return withCapitalization;
   } catch (error: any) {
     console.error("generateLessonSegments failed:", error);
     throw new Error(`Falha ao gerar segmentos: ${error.message}`);
   }
 }
+
+
