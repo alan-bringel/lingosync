@@ -411,7 +411,7 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
     const isSpecialIsolate = /^(goodbye|hello|so let's get started|amen|thank you|welcome)$/i.test(current.text.trim().replace(/[^a-z]/g, ""));
     
     // Rule: NO Small segments in the middle of a lesson.
-    let shouldMerge = (wordCount < 4 || (wordCount === 1 && !isLastSegment)) && !isSpecialIsolate; 
+    let shouldMerge = (wordCount <= 4 || (wordCount === 1 && !isLastSegment)) && !isSpecialIsolate; 
     
     if (result.length > 0 && !shouldMerge) {
       const prev = result[result.length - 1];
@@ -520,18 +520,26 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
       const intentionalBreakPrefixes = ["but ", "and ", "or ", "so ", "because "];
       const porIntentionalBreakPrefixes = ["mas ", "e ", "ou ", "porque "];
       
-      const isIntentionalBreak = wordCount >= 4 && (
-        intentionalBreakPrefixes.some(p => currText.startsWith(p)) ||
-        porIntentionalBreakPrefixes.some(p => currTrans.startsWith(p))
-      );
+      const isConnectorStart = intentionalBreakPrefixes.some(p => currText.startsWith(p)) ||
+        porIntentionalBreakPrefixes.some(p => currTrans.startsWith(p));
       
-      // Merge only for dangling ends, not for intentional connector splits
-      if (isIntentionalBreak) {
-        // This is a deliberate split at a natural connector — keep it
-        console.log(`[LingoSync] DIVISAO INTENCIONAL: Keeping "${current.text}" as separate segment (connector split).`);
-      } else if (endsWithDanglingEnglish || endsWithDanglingPortuguese || 
-          startsWithContinuationEnglish || startsWithContinuationPortuguese) {
+      const prevWordCount = prevText.split(/\s+/).filter(w => w.length > 0).length;
+      
+      // Force merge when previous segment is small and current starts with a connector
+      // e.g., "Yeah things like Armageddon" + "or the Apocalypse" → merge
+      if (isConnectorStart && prevWordCount <= 6) {
         shouldMerge = true;
+        console.log(`[LingoSync] FORÇANDO FUSÃO (conector + segmento pequeno): Merging "${current.text}" into previous.`);
+      } else {
+        const isIntentionalBreak = wordCount >= 4 && isConnectorStart;
+        
+        // Merge only for dangling ends, not for intentional connector splits
+        if (isIntentionalBreak) {
+          console.log(`[LingoSync] DIVISAO INTENCIONAL: Keeping "${current.text}" as separate segment (connector split).`);
+        } else if (endsWithDanglingEnglish || endsWithDanglingPortuguese || 
+            startsWithContinuationEnglish || startsWithContinuationPortuguese) {
+          shouldMerge = true;
+        }
       }
     }
 
