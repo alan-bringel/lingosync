@@ -275,17 +275,8 @@ export function remedySegments(segments: TranscriptSegment[]): TranscriptSegment
     }
   }
 
-  // 3. Final refinement: Subtract 0.5s from the end of each segment to prevent "word bleeding"
-  const buffer = 0.5;
-  const remedied = result.map((segment) => {
-    return {
-      ...segment,
-      start: Math.max(0, segment.start - buffer),
-      end: Math.max(segment.start, segment.end - buffer)
-    };
-  });
-
-  return remedied;
+  // 3. Return segments with exact word-based timestamps
+  return result;
 }
 
 function normalizeWordsForComparison(text: string): string[] {
