@@ -461,7 +461,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }
   }, [isEditModeGlobal]);
 
-  const getSegmentStartWithPreroll = (start: number) => Math.max(0, start - 0.5);
+  const getSegmentStartWithPreroll = (start: number) => Math.max(0, start - 0.1);
   const [stopTime, setStopTime] = useState<number | null>(null);
 
   // Active repeat state tracking
@@ -1111,12 +1111,13 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     repeatsLeftRef.current = repeats === Infinity ? Infinity : Math.max(0, repeats - 1);
     setActiveSegmentIndex(index);
 
-    // O tempo de parada segue exatamente o 'end' do segmento.
-    setStopTime(end);
+    // stopTime um pouco antes do end para compensar a granularidade
+    // do evento timeupdate (~250ms), evitando vazar para o próximo segmento
+    setStopTime(Math.max(start + 0.05, end - 0.15));
 
     const speed = globalSpeed;
 
-    // 0.5s de preroll para evitar corte da primeira sílaba por buffer.
+    // 0.1s de preroll para evitar corte da primeira sílaba por buffer.
     // O destaque palavra por palavra usa activeSegmentIndex diretamente
     // (em vez de buscar por tempo), então não é afetado pelo preroll.
     const exactStart = getSegmentStartWithPreroll(start);
