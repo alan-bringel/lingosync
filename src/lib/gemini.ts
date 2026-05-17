@@ -118,14 +118,56 @@ function deriveSegmentBounds(words: Word[], fallbackStart: number, fallbackEnd: 
 }
 
 /**
- * Splits a translation text proportionally by word count (not character position).
+ * Splits a translation at the same punctuation mark (:, ;) as the English split point.
+ * Falls back to proportional word-count split when the punctuation isn't found.
+ */
+function splitTranslationAtMatchingPunct(transText: string, punct: string, engWordCountA: number, totalEngWords: number): { transA: string; transB: string } {
+  if (!transText) return { transA: "", transB: "" };
+  const transWords = transText.trim().split(/\s+/).filter(Boolean);
+  if (transWords.length <= 1) return { transA: transText, transB: "" };
+
+  // Try to find the same punctuation in the translation at a proportional position
+  const proportionalTransPos = Math.floor((engWordCountA / totalEngWords) * transText.length);
+  const searchRadius = Math.floor(transText.length * 0.3);
+  const searchStart = Math.max(0, proportionalTransPos - searchRadius);
+  const searchEnd = Math.min(transText.length, proportionalTransPos + searchRadius);
+  const searchRegion = transText.slice(searchStart, searchEnd);
+
+  const punctEscaped = punct.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const punctPattern = new RegExp(`${punctEscaped}\\s+`);
+  const punctInTrans = searchRegion.match(punctPattern);
+
+  if (punctInTrans && punctInTrans.index !== undefined) {
+    const absoluteIdx = searchStart + punctInTrans.index + punctInTrans[0].length;
+    const transA = transText.slice(0, absoluteIdx).trim();
+    const transB = transText.slice(absoluteIdx).trim();
+
+    const wordsA = transA.split(/\s+/).filter(Boolean);
+    const wordsB = transB.split(/\s+/).filter(Boolean);
+    if (wordsA.length >= 2 && wordsB.length >= 2) {
+      return { transA, transB };
+    }
+  }
+
+  // Fallback: proportional word-count split
+  const targetCount = Math.max(1, Math.round((engWordCountA / totalEngWords) * transWords.length));
+  const wordsA = transWords.slice(0, targetCount);
+  const wordsB = transWords.slice(targetCount);
+  return {
+    transA: wordsA.join(" "),
+    transB: wordsB.join(" "),
+  };
+}
+
+/**
+ * Splits a translation proportionally by word count.
+ * Used for connector-based splits (and, but, or, etc.) where punctuation matching isn't possible.
  */
 function splitTranslationByWordCount(transText: string, wordCountA: number, totalWords: number): { transA: string; transB: string } {
   if (!transText) return { transA: "", transB: "" };
   const transWords = transText.trim().split(/\s+/).filter(Boolean);
   if (transWords.length <= 1) return { transA: transText, transB: "" };
 
-  // Proportion: how many translation words correspond to engA's word count
   const targetCount = Math.max(1, Math.round((wordCountA / totalWords) * transWords.length));
   const wordsA = transWords.slice(0, targetCount);
   const wordsB = transWords.slice(targetCount);
@@ -174,7 +216,8 @@ function splitLargeSegments(segments: TranscriptSegment[], maxWords: number = 15
         const { start: startA, end: endA } = deriveSegmentBounds(wordsA, segment.start, segment.start + ((segment.end - segment.start) * (engA.length / engText.length)));
         const { start: startB, end: endB } = deriveSegmentBounds(wordsB, segment.start + ((segment.end - segment.start) * (engA.length / engText.length)), segment.end);
 
-        const { transA, transB } = splitTranslationByWordCount(transText, engAWordCount, wordCount);
+        const punctChar = engText[punctMatch.index];
+        const { transA, transB } = splitTranslationAtMatchingPunct(transText, punctChar, engAWordCount, wordCount);
 
         result.push({
           ...segment,
@@ -237,6 +280,116 @@ function splitLargeSegments(segments: TranscriptSegment[], maxWords: number = 15
   }
 
   return result;
+}
+
+/**
+ * Detects and removes translation words that bled from the next segment.
+ * Pattern: English ends with colon/semicolon (e.g., "a promise:") but
+ * the translation has extra words after the colon (e.g., "uma promessa: Você").
+ * The extra word "Você" translates to "You" which is the first word of the next English segment.
+ */
+function trimBleedingTranslations(segments: TranscriptSegment[]): TranscriptSegment[] {
+  return segments.map((segment, i) => {
+    if (i === segments.length - 1 || !segment.translation) return segment;
+
+    const engTrimmed = segment.text.trim();
+    const transText = segment.translation.trim();
+    if (!transText) return segment;
+
+    // --- Case 1: English ends with colon or semicolon ---
+    const engEndPunct = engTrimmed.match(/[;:]\s*$/);
+    if (engEndPunct) {
+      const punct = engEndPunct[0].trim();
+      const punctIdx = transText.lastIndexOf(punct);
+      if (punctIdx >= 0 && punctIdx < transText.length - 1) {
+        const afterPunct = transText.slice(punctIdx + 1).trim();
+        if (afterPunct.split(/\s+/).filter(Boolean).length >= 1) {
+          const cleaned = transText.slice(0, punctIdx + 1).trim();
+          // Only trim if the next segment's English starts with a word
+          // that the removed translation word could represent
+          const removedWord = afterPunct.split(/\s+/)[0].toLowerCase().replace(/[^a-zà-ü]/g, '');
+          const nextFirstWord = segments[i + 1].text.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z]/g, '');
+          if (nextFirstWord && wordCouldTranslate(removedWord, nextFirstWord)) {
+            return { ...segment, translation: cleaned };
+          }
+        }
+      }
+    }
+
+    // --- Case 2: Translation has significantly more words than expected ---
+    // English→Portuguese ratio is typically 1:1 to 1:1.3.
+    // If translation exceeds English by more than 35%, trim from end.
+    const engWords = engTrimmed.split(/\s+/).filter(Boolean).length;
+    const transWords = transText.split(/\s+/).filter(Boolean);
+    if (engWords >= 4 && transWords.length > Math.ceil(engWords * 1.35)) {
+      const targetLen = Math.ceil(engWords * 1.25);
+      const nextFirstWord = segments[i + 1].text.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z]/g, '');
+      if (nextFirstWord) {
+        const lastTransWord = transWords[transWords.length - 1].toLowerCase().replace(/[^a-zà-ü]/g, '');
+        if (wordCouldTranslate(lastTransWord, nextFirstWord)) {
+          return { ...segment, translation: transWords.slice(0, -1).join(" ") };
+        }
+      }
+    }
+
+    return segment;
+  });
+}
+
+/**
+ * Checks if a Portuguese word could translate a given English word.
+ */
+function wordCouldTranslate(ptWord: string, enWord: string): boolean {
+  if (!ptWord || !enWord || ptWord.length === 0 || enWord.length === 0) return false;
+
+  const translationMap: Record<string, string[]> = {
+    'você': ['you'],
+    'voce': ['you'],
+    'tu': ['you'],
+    'eles': ['they'],
+    'elas': ['they'],
+    'ele': ['he', 'it'],
+    'ela': ['she', 'it'],
+    'nós': ['we'],
+    'nos': ['we'],
+    'isto': ['this'],
+    'esta': ['this'],
+    'este': ['this'],
+    'essas': ['these', 'those'],
+    'esses': ['these', 'those'],
+    'isso': ['that'],
+    'essa': ['that'],
+    'esse': ['that'],
+    'aquele': ['that'],
+    'aquela': ['that'],
+    'mas': ['but'],
+    'porém': ['but', 'however'],
+    'contudo': ['but', 'however'],
+    'então': ['so', 'then'],
+    'assim': ['so', 'thus'],
+    'porque': ['because'],
+    'pois': ['because', 'then', 'so'],
+    'também': ['also', 'too'],
+    'ainda': ['still', 'yet'],
+    'agora': ['now'],
+    'depois': ['after', 'then', 'later'],
+    'há': ['there', 'ago'],
+    'ali': ['there'],
+    'lá': ['there'],
+    'portanto': ['therefore'],
+    'todavia': ['however'],
+    'e': ['and'],
+    'ou': ['or'],
+    'o': ['the'],
+    'a': ['the'],
+    'os': ['the'],
+    'as': ['the'],
+    'um': ['a', 'an', 'one'],
+    'uma': ['a', 'an', 'one'],
+  };
+
+  const possible = translationMap[ptWord];
+  return possible ? possible.includes(enWord) : false;
 }
 
 /**
@@ -687,6 +840,11 @@ Every word in the English segment and EVERY word in the ${langName} segment must
      - Seg 1: "But the humans are tempted by this mysterious unhuman character who offers them a promise:" / "Mas os humanos são tentados por este misterioso personagem não humano que lhes oferece uma promessa:" ✅
      - Seg 2: "You could define good and evil on your own terms" / "Você poderia definir o bem e o mal por seus próprios termos" ✅
    - **RULE**: A colon is always a valid split point. Split BEFORE the colon's continuation, not after.
+3. **FAILURE CASE (TRANSLATION WORD BLEEDING — WORDS FROM NEXT SEGMENT LEAK INTO CURRENT)**: When split at a colon, each segment's translation MUST ONLY contain words from its paired English text. NEVER include words from the next segment.
+   - WRONG: Seg 1: "...a promise:" / "...uma promessa: Você" ❌ ("Você" translates "You" from Seg 2, NOT Seg 1)
+   - CORRECT: Seg 1: "...a promise:" / "...uma promessa:" ✅ (stop at the colon)  
+   - CORRECT: Seg 2: "You could..." / "Você poderia..." ✅ ("Você" belongs here)
+   - **RULE**: The translation at a colon must also stop at the colon. No words from after the colon in the translation are allowed in the current segment.
 
 ### ✅ SELF-CHECK BEFORE OUTPUT:
 Before finalizing your output, verify EVERY segment against ALL of these checks. If ANY check fails, fix the segment:
@@ -766,10 +924,11 @@ Output MINIFIED JSON array: [{ "text": string, "translation": string, "start": n
     console.log("[LingoSync] IA Bruta (DeepSeek):", cleaned.length, "segmentos.");
     const remedied = remedySegments(cleaned);
     const splitted = splitLargeSegments(remedied, 15);
-    if (splitted.length > remedied.length) {
-      console.log(`[LingoSync] Quebra de segmentos grandes: ${remedied.length} → ${splitted.length} segmentos.`);
+    const trimmed = trimBleedingTranslations(splitted);
+    if (trimmed.length > remedied.length) {
+      console.log(`[LingoSync] Quebra de segmentos grandes: ${remedied.length} → ${trimmed.length} segmentos.`);
     }
-    const final = splitted.map(segment => ({
+    const final = trimmed.map(segment => ({
       ...segment,
       translation: normalizeTranslationPunctuationBySource(segment.text, segment.translation || "")
     }));
@@ -983,6 +1142,7 @@ CRITICAL RULES:
    - Example: "the story? It" → "a história? Ela" (NOT "a história Ela")
    - Example: "God said: let" → "Deus disse: deixe" (NOT "Deus disse deixe")
    - **REAL FAILURE CASE — NEVER REPEAT**: "The day of the Lord. It is a phrase" → MUST be "O dia do Senhor. É uma frase" (NOT "O dia do Senhor É uma frase" — the period after "Senhor" is REQUIRED)
+   - **REAL FAILURE CASE — NEVER REPEAT (COLON BLEEDING)**: English "a promise:" / Portuguese MUST be "uma promessa:" (NOT "uma promessa: Você" — "Você" belongs to the next segment's "You could...")
 5. DO NOT merge or split segments — keep the same number of segments.
 6. If a segment is a single word, translate it appropriately in context.
 7. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
