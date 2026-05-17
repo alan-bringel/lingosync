@@ -537,17 +537,21 @@ export async function generateLessonSegments(
     - Example: "on His behalf" → "em Seu nome" (NOT "em Seu lugar")
 4. **ADJUST ENGLISH BREAKS**: You have full authority to move English words between segments to ensure the translation is not split.
 5. **SIZE LIMITS (CRITICAL — PREFER SHORTER SEGMENTS)**: 4 to 12 words per segment. PREFER segments closer to 8-10 words. NEVER exceed 15 words. Break long segments at natural connectors.
-6. **SPLIT AT NATURAL CONNECTORS**: When a sentence has a natural break (comma, "and", "but", "or", "so", "however", "with", "because", "which"), split it into two segments at that point. This makes the lesson easier to study.
+6. **SPLIT AT NATURAL CONNECTORS**: When a sentence has a natural break (comma, colon, semicolon, "and", "but", "or", "so", "however", "with", "because", "which"), split it into two segments at that point. This makes the lesson easier to study.
    - Example: "Genres are a unique style of communicating, with certain ones being more effective..." → 
      - Seg 1: "Genres are a unique style of communicating," / "Gêneros são um estilo único de comunicação,"
      - Seg 2: "with certain ones being more effective..." / "sendo alguns mais eficazes..."
    - Example: "So a lot of these images come from the last book of the Bible, but to understand them, you have to go back to the first book." →
      - Seg 1: "So a lot of these images come from the last book of the Bible," / "Então muitas dessas imagens vêm do último livro da Bíblia,"
      - Seg 2: "but to understand them, you have to go back to the first book." / "mas para entendê-las, você tem que voltar ao primeiro livro."
+   - Example: "who offers them a promise: You could define good and evil" →
+     - Seg 1: "who offers them a promise:" / "que lhes oferece uma promessa:"
+     - Seg 2: "You could define good and evil" / "Você poderia definir o bem e o mal"
 7. **MIRROR PUNCTUATION**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
    - Example: "the world. He" → "o mundo. Ele" (NOT "o mundo Ele")
    - Example: "the story? It" → "a história? Ela" (NOT "a história Ela")
    - Example: "God said: let" → "Deus disse: deixe" (NOT "Deus disse deixe")
+   - Example: "the Lord. It is a phrase" → "o Senhor. É uma frase" (NOT "o Senhor É uma frase")
 8. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
 9. **CORRECT PRONOUN GENDER IN ${langName.toUpperCase()}**: Pay close attention to the gender of nouns when translating pronouns. **Trace back to find the noun that the pronoun refers to**, identify its gender in ${langName}, and match the pronoun consistently. Examples:
    - "the world (o mundo, masculine) → rule over **it**" → "governar sobre **ele**" (NOT "ela")
