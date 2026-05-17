@@ -461,7 +461,28 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     }
   }, [isEditModeGlobal]);
 
-  const getSegmentStartWithPreroll = (start: number) => Math.max(0, start - 0.3);
+  // Buffer dinâmico: adapta preroll e stopTime ao espaçamento real entre segmentos
+  // para não capturar áudio de segmentos adjacentes.
+  function getDynamicStart(segmentIndex: number): number {
+    const segment = track.transcript[segmentIndex];
+    if (!segment) return 0;
+    const idealPreroll = 0.3;
+    if (segmentIndex <= 0) return Math.max(0, segment.start - idealPreroll);
+    const prevSegment = track.transcript[segmentIndex - 1];
+    const gap = segment.start - prevSegment.end;
+    if (gap >= idealPreroll) return Math.max(0, segment.start - idealPreroll);
+    // Gap menor que o preroll: usa metade do gap para não invadir o segmento anterior
+    return Math.max(0, segment.start - (gap / 2));
+  }
+  function getDynamicStopTime(segmentIndex: number, start: number, end: number): number {
+    const idealBuffer = 0.3;
+    if (segmentIndex >= track.transcript.length - 1) return Math.max(start + 0.05, end - idealBuffer);
+    const nextSegment = track.transcript[segmentIndex + 1];
+    const gap = nextSegment.start - end;
+    if (gap >= idealBuffer) return Math.max(start + 0.05, end - idealBuffer);
+    // Gap pequeno: usa o end exato em vez de subtrair
+    return end;
+  }
   const [stopTime, setStopTime] = useState<number | null>(null);
 
   // Active repeat state tracking
@@ -1008,7 +1029,7 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       if (repeatsLeftRef.current > 0 || repeatsLeftRef.current === Infinity) {
         if (activeSegmentIndex !== null) {
           const seg = track.transcript[activeSegmentIndex];
-          const loopStart = getSegmentStartWithPreroll(seg.start);
+          const loopStart = getDynamicStart(activeSegmentIndex);
           stableTimeRef.current = loopStart;
           if (track.youtubeId && ytPlayerRef.current && isYtReady) {
             ytPlayerRef.current.pauseVideo?.();
@@ -1111,15 +1132,15 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     repeatsLeftRef.current = repeats === Infinity ? Infinity : Math.max(0, repeats - 1);
     setActiveSegmentIndex(index);
 
-    // stopTime 0.3s antes do end para evitar vazar áudio para o próximo segmento
-    setStopTime(Math.max(start + 0.05, end - 0.3));
+    // stopTime adaptado ao espaçamento com o próximo segmento
+    setStopTime(getDynamicStopTime(index, start, end));
 
     const speed = globalSpeed;
 
-    // 0.3s de preroll para evitar corte da primeira sílaba por buffer.
+    // Preroll adaptado ao espaçamento com o segmento anterior.
     // O destaque palavra por palavra usa activeSegmentIndex diretamente
     // (em vez de buscar por tempo), então não é afetado pelo preroll.
-    const exactStart = getSegmentStartWithPreroll(start);
+    const exactStart = getDynamicStart(index);
     stableTimeRef.current = exactStart;
 
     if (track.youtubeId && ytPlayerRef.current && isYtReady) {

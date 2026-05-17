@@ -604,6 +604,10 @@ Every word in the English segment and EVERY word in the ${langName} segment must
 - WRONG: "is another." and then "another. Each genre..." -> WRONG: "another" repeated.
 - RIGHT: "children's book is another." and then "Each genre has separate techniques..."
 
+### ⚠️ CRITICAL — SIZE LIMITS: NEVER generate a segment with more than 15 words. Split long segments at natural breaks like colons, commas, or connectors. Example: "who offers them a promise: You could define good and evil" MUST be split into two segments at the colon.
+
+### ⚠️ CRITICAL — MIRROR PUNCTUATION: The translation MUST preserve ALL punctuation marks (.,!?:;) from the English text at the SAME positions. Never omit a period, comma, or any punctuation that exists in the English. This is MANDATORY, not optional.
+
 Return exactly a JSON array of objects. Fields: text, translation.`;
 
   const userPrompt = `Text: "${text}"
