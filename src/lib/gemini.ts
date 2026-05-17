@@ -39,24 +39,46 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
   let translation = (translationText || "").trim();
   if (!translation) return translation;
 
-  // ── Mirror MID-TEXT punctuation from source to translation ──
-  // For each punctuation mark in the source (not at end), ensure
-  // the translation has matching punctuation at a similar word position.
-  const srcTokens = source.match(/\S+/g) || [];
-  const translTokens = translation.match(/\S+/g) || [];
-  const maxIdx = Math.min(srcTokens.length, translTokens.length);
+  // ── Mirror MID-TEXT punctuation using RATIO-based alignment ──
+  // Token-level alignment fails for English↔Portuguese because word
+  // counts and ordering differ (e.g. "the Lord" = 2 EN tokens vs
+  // "do Senhor" = 2 PT tokens but offset).  Using ratio of word
+  // position avoids misplacing punctuation on the wrong word.
+  const srcWords = source.match(/\S+/g) || [];
+  const translWords = translation.match(/\S+/g) || [];
 
-  for (let i = 0; i < maxIdx; i++) {
-    const srcToken = srcTokens[i];
-    const trailingPunct = srcToken.match(/[.!?,;:]+$/)?.[0] || '';
-    if (trailingPunct) {
-      const translToken = translTokens[i];
+  if (srcWords.length > 0 && translWords.length > 0) {
+    for (let si = 0; si < srcWords.length; si++) {
+      const trailingPunct = srcWords[si].match(/[.!?,;:]+$/)?.[0] || '';
+      if (!trailingPunct) continue;
+      // Skip the very last word — ending punctuation handled separately below
+      if (si >= srcWords.length - 1) continue;
+
+      // Map source word index to translation word index by ratio
+      const ratio = si / srcWords.length;
+      let ti = Math.round(ratio * translWords.length);
+      ti = Math.max(0, Math.min(translWords.length - 1, ti));
+
+      // Fine-tune: search ±1 word around the ratio position
+      let bestDist = Infinity;
+      let bestTi = ti;
+      const searchStart = Math.max(0, ti - 1);
+      const searchEnd = Math.min(translWords.length - 1, ti + 1);
+      for (let t = searchStart; t <= searchEnd; t++) {
+        const dist = Math.abs(t / translWords.length - ratio);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestTi = t;
+        }
+      }
+
+      const translToken = translWords[bestTi];
       if (!translToken.endsWith(trailingPunct)) {
-        translTokens[i] = translToken.replace(/[.!?,;:]*$/, '') + trailingPunct;
+        translWords[bestTi] = translToken.replace(/[.!?,;:]*$/, '') + trailingPunct;
       }
     }
+    translation = translWords.join(' ');
   }
-  translation = translTokens.join(' ');
 
   // ── Mirror ENDING punctuation ──
   const sourceEndsWithComma = /,\s*$/.test(source);
@@ -73,7 +95,8 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
   }
 
   if (sourceEndsWithComma) {
-    normalized = normalized.replace(/([a-zA-ZÀ-ÿ0-9])\.\s+([A-ZÀ-Ý])/g, "$1, $2");
+    // Only change the FINAL period to a comma — not mid-text sentence boundaries
+    normalized = normalized.replace(/\.\s*$/, ',');
   }
 
   return normalized;
