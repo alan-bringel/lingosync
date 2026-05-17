@@ -420,7 +420,13 @@ You must be as intelligent and context-aware as Gemini 1.5 Flash.
 ### CRITICAL RULES (TOTAL FIDELITY & SEMANTIC ALIGNMENT):
 1. **100% WORD COVERAGE**: Use EVERY word from the input exactly once.
 2. **NO CROSSING RULE (MANDATORY)**: A translated word MUST stay with its English source in the SAME segment pair. If ${langName} requires an inverted word order (e.g., "simple way" → "forma simples"), DO NOT split them. MOVE the English words to the next segment if necessary, OR keep them together in the current segment.
-3. **NATURAL ${langName.toUpperCase()}**: Prioritize idiomatic, native-sounding ${langName}.
+3. **NATURAL ${langName.toUpperCase()} (CRITICAL — AVOID LITERALISM)**: Translate into natural, idiomatic ${langName} as a native speaker would write it. Avoid literal word-for-word translations that sound awkward. Prefer:
+   - Contracted/merged verb forms: "governá-lo" instead of "governar sobre ele", "usá-la" instead of "usar ela"
+   - Natural word order for ${langName}, not mirroring English syntax
+   - Common ${langName} expressions over direct English calques
+   - Example: "rule over it" → "governá-lo" (NOT "governar sobre ele")
+   - Example: "we watch God create" → "vemos Deus criar" (NOT "nós vemos Deus criar")
+   - Example: "on His behalf" → "em Seu nome" (NOT "em Seu lugar")
 4. **ADJUST ENGLISH BREAKS**: You have full authority to move English words between segments to ensure the translation is not split.
 5. **SIZE LIMITS**: 4 to 15 words per segment.
 6. **MIRROR PUNCTUATION**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
@@ -745,7 +751,10 @@ Segments to translate: ${JSON.stringify(segmentsJson)}
 CRITICAL RULES:
 1. Translate EACH segment independently.
 2. Each translation must correspond EXACTLY to its English segment.
-3. Use natural, idiomatic ${langName}.
+3. **AVOID LITERALISM — translate naturally**: Use natural, idiomatic ${langName} as a native speaker would write it. Avoid literal word-for-word translations. Prefer contracted verb forms ("governá-lo" not "governar sobre ele"), natural word order, and common expressions over English calques.
+   - Example: "rule over it" → "governá-lo" (NOT "governar sobre ele")
+   - Example: "we watch God create" → "vemos Deus criar" (NOT "nós vemos Deus criar")
+   - Example: "on His behalf" → "em Seu nome" (NOT "em Seu lugar")
 4. **MIRROR PUNCTUATION EXACTLY**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
    - Example: "the world. He" → "o mundo. Ele" (NOT "o mundo Ele")
    - Example: "the story? It" → "a história? Ela" (NOT "a história Ela")
