@@ -39,11 +39,7 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
   let translation = (translationText || "").trim();
   if (!translation) return translation;
 
-  // ── Mirror ENDING punctuation only ──
-  // Mid-text punctuation alignment is NOT reliable for English↔Portuguese
-  // because word counts and ordering differ between languages.
-  // The DeepSeek prompt already includes MIRROR PUNCTUATION rules.
-  // Ending punctuation mirror is a safe safety net.
+  // ── Mirror ENDING punctuation ──
   const sourceEndsWithComma = /,\s*$/.test(source);
   const sourceEndsWithTerminal = /[.!?]\s*$/.test(source);
   const sourceEndingPunctuation = source.match(/[.!?,]\s*$/)?.[0]?.trim() || "";
@@ -61,7 +57,148 @@ function normalizeTranslationPunctuationBySource(sourceText: string, translation
     normalized = normalized.replace(/\.\s*$/, ',');
   }
 
+  // ── Mirror MID-TEXT punctuation ──
+  // Map punctuation positions from source to translation using proportional
+  // character-position alignment. This handles cases like:
+  //   "the Lord. It" → "o Senhor. É" (NOT "o Senhor É")
+  //   "a promise: You" → "uma promessa: Você" (NOT "uma promessa Você")
+  const midPunctRegex = /[.!?:;]/g;
+  let punctMatch: RegExpExecArray | null;
+
+  while ((punctMatch = midPunctRegex.exec(source)) !== null) {
+    const isLastPunct = punctMatch.index === source.length - 1 ||
+      source.slice(punctMatch.index + 1).trim().length === 0;
+    if (isLastPunct) continue;
+
+    const sourceRatio = punctMatch.index / source.length;
+    const expectedTransPos = Math.floor(sourceRatio * normalized.length);
+    const searchRadius = 8;
+    const searchStart = Math.max(0, expectedTransPos - searchRadius);
+    const searchEnd = Math.min(normalized.length, expectedTransPos + searchRadius);
+    const nearbyText = normalized.slice(searchStart, searchEnd);
+
+    if (!nearbyText.includes(punctMatch[0])) {
+      const spacePos = normalized.indexOf(' ', Math.max(0, expectedTransPos - 3));
+      if (spacePos > 0 && spacePos < normalized.length - 1) {
+        const charBefore = normalized[spacePos - 1];
+        if (charBefore && /[a-zA-Z\u00C0-\u024F]/.test(charBefore)) {
+          normalized = normalized.slice(0, spacePos) + punctMatch[0] + ' ' + normalized.slice(spacePos + 1);
+        }
+      }
+    }
+  }
+
   return normalized;
+}
+
+/**
+ * Splits segments that exceed the word limit at natural break points
+ * (colon, semicolon, connectors like "and", "but", "or", "so", "because").
+ * This is a safety net — the AI should already split correctly per the prompt.
+ */
+function splitLargeSegments(segments: TranscriptSegment[], maxWords: number = 15): TranscriptSegment[] {
+  const result: TranscriptSegment[] = [];
+
+  const connectorPattern = /\s+(and\s+|but\s+|or\s+|so\s+|because\s+|however\s+|,\s+with\s+)/i;
+  const colonSemicolonPattern = /[;:]\s+/;
+
+  for (const segment of segments) {
+    const wordCount = segment.text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    if (wordCount <= maxWords) {
+      result.push(segment);
+      continue;
+    }
+
+    const engText = segment.text;
+    const transText = segment.translation || "";
+
+    // Try splitting at colon or semicolon first
+    const punctMatch = engText.match(colonSemicolonPattern);
+    if (punctMatch && punctMatch.index !== undefined) {
+      const splitIdx = punctMatch.index + punctMatch[0].length;
+      const engA = engText.slice(0, splitIdx).trim();
+      const engB = engText.slice(splitIdx).trim();
+
+      if (engA.split(/\s+/).filter(Boolean).length >= 3 && engB.split(/\s+/).filter(Boolean).length >= 3) {
+        // Split translation proportionally at the same relative position
+        const transRatio = engText.slice(0, splitIdx).length / engText.length;
+        const transSplitPos = Math.floor(transRatio * transText.length);
+        const transSpacePos = transText.indexOf(' ', Math.max(0, transSplitPos - 5));
+
+        let transA: string, transB: string;
+        if (transSpacePos > 0 && transSpacePos < transText.length - 1) {
+          transA = transText.slice(0, transSpacePos + 1).trim();
+          transB = transText.slice(transSpacePos + 1).trim();
+        } else {
+          transA = transText;
+          transB = "";
+        }
+
+        const midTime = (segment.start + segment.end) / 2;
+
+        result.push({
+          ...segment,
+          text: engA,
+          translation: transA,
+          end: midTime,
+          words: segment.words || [],
+        });
+        result.push({
+          ...segment,
+          text: engB,
+          translation: transB,
+          start: midTime,
+          words: [],
+        });
+        continue;
+      }
+    }
+
+    // Try splitting at a connector (and, but, or, so, because)
+    const connMatch = engText.match(connectorPattern);
+    if (connMatch && connMatch.index !== undefined) {
+      const splitIdx = connMatch.index;
+      const engA = engText.slice(0, splitIdx).trim();
+      const engB = engText.slice(splitIdx).trim();
+
+      if (engA.split(/\s+/).filter(Boolean).length >= 3 && engB.split(/\s+/).filter(Boolean).length >= 3) {
+        const transRatio = engA.length / engText.length;
+        const transSplitPos = Math.floor(transRatio * transText.length);
+        const transSpacePos = transText.indexOf(' ', Math.max(0, transSplitPos - 5));
+
+        let transA: string, transB: string;
+        if (transSpacePos > 0 && transSpacePos < transText.length - 1) {
+          transA = transText.slice(0, transSpacePos + 1).trim();
+          transB = transText.slice(transSpacePos + 1).trim();
+        } else {
+          transA = transText;
+          transB = "";
+        }
+
+        const midTime = (segment.start + segment.end) / 2;
+
+        result.push({
+          ...segment,
+          text: engA,
+          translation: transA,
+          end: midTime,
+          words: segment.words || [],
+        });
+        result.push({
+          ...segment,
+          text: engB,
+          translation: transB,
+          start: midTime,
+          words: [],
+        });
+        continue;
+      }
+    }
+
+    result.push(segment);
+  }
+
+  return result;
 }
 
 /**
@@ -485,12 +622,30 @@ Every word in the English segment and EVERY word in the ${langName} segment must
 - WRONG: "is another." and then "another. Each genre..." -> WRONG: "another" repeated.
 - RIGHT: "...children's book is another." and then "Each genre has separate techniques..."
 
-### ⚠️ CRITICAL — SIZE LIMITS: NEVER generate a segment with more than 15 words. Split long segments at natural breaks like colons, commas, or connectors. Example: "who offers them a promise: You could define good and evil" MUST be split into two segments at the colon.
+### ⚠️ CRITICAL — SIZE LIMITS (MANDATORY): NEVER generate a segment with more than 15 words. Split long segments at natural breaks like colons, commas, or connectors. Example: "who offers them a promise: You could define good and evil" MUST be split into two segments at the colon (Seg 1: "who offers them a promise:" / Seg 2: "You could define good and evil").
 
-### ⚠️ CRITICAL — MIRROR PUNCTUATION: YOU MUST NEVER IGNORE THIS RULE. The translation MUST preserve EVERY punctuation mark (.,!?:;) from the English text at the EXACT corresponding position in the Portuguese text. Look at each English punctuation mark and place the SAME mark at the SAME position in the translation. A missing period or comma is a CRITICAL ERROR.
+### ⚠️ CRITICAL — MIRROR PUNCTUATION (MANDATORY): YOU MUST NEVER IGNORE THIS RULE. The translation MUST preserve EVERY punctuation mark (.,!?:;) from the English text at the EXACT corresponding position in the Portuguese text. Look at each English punctuation mark and place the SAME mark at the SAME position in the translation. A missing period or comma is a CRITICAL ERROR.
    - Example: "the Lord. It" -> "o Senhor. É" (you MUST keep the period after Senhor because it exists after Lord)
    - Example: "God said: let" -> "Deus disse: deixe" (you MUST keep the colon)
    - NEVER write "o Senhor É" when English has "the Lord. It" — the period is required.
+
+### 🔴 REAL USER FAILURE CASES — NEVER REPEAT THESE MISTAKES:
+1. **FAILURE CASE (MISSING PERIOD IN MID-TEXT)**: Input "The day of the Lord. It is a phrase in the Bible that religious people use," → 
+   - WRONG: "O dia do Senhor É uma frase na Bíblia que pessoas religiosas usam," ❌ (period after "Senhor" is MISSING)
+   - CORRECT: "O dia do Senhor. É uma frase na Bíblia que pessoas religiosas usam," ✅ (period MUST be mirrored after "Senhor")
+   - **RULE**: The period after "Lord" in English MUST produce a period after "Senhor" in Portuguese.
+2. **FAILURE CASE (SEGMENT TOO LARGE — NOT SPLIT AT COLON)**: Input "But the humans are tempted by this mysterious unhuman character who offers them a promise: You could define good and evil on your own terms" →
+   - WRONG (one giant segment): "But the humans are tempted by this mysterious unhuman character who offers them a promise: You could define good and evil on your own terms" / "Mas os humanos são tentados por este misterioso personagem não humano que lhes oferece uma promessa: Você poderia definir o bem e o mal por seus próprios termos" ❌ (25 words — exceeds limit and should be split)
+   - CORRECT (split at colon): 
+     - Seg 1: "But the humans are tempted by this mysterious unhuman character who offers them a promise:" / "Mas os humanos são tentados por este misterioso personagem não humano que lhes oferece uma promessa:" ✅
+     - Seg 2: "You could define good and evil on your own terms" / "Você poderia definir o bem e o mal por seus próprios termos" ✅
+   - **RULE**: A colon is always a valid split point. Split BEFORE the colon's continuation, not after.
+
+### ✅ SELF-CHECK BEFORE OUTPUT:
+Before finalizing your output, verify EVERY segment against ALL of these checks. If ANY check fails, fix the segment:
+   - [ ] Check 1: Does EVERY segment have 15 or fewer words? If NO → split at the nearest colon, semicolon, or connector.
+   - [ ] Check 2: For EVERY ".!?:;" in the English text, does the SAME punctuation appear at the CORRESPONDING position in the Portuguese translation? If NO → insert the missing punctuation.
+   - [ ] Check 3: Are any segments starting with "You could", "They", "He", "She", "It", "We", "This", "That", "There" (after a colon or period in the previous segment) — meaning a split point was missed? If YES → verify the split is correct.
 
 Output MINIFIED JSON array: [{ "text": string, "translation": string, "start": number, "end": number, "words": [{ "text": string, "start": number, "end": number }] }]`;
 
@@ -563,7 +718,11 @@ Output MINIFIED JSON array: [{ "text": string, "translation": string, "start": n
 
     console.log("[LingoSync] IA Bruta (DeepSeek):", cleaned.length, "segmentos.");
     const remedied = remedySegments(cleaned);
-    const final = remedied.map(segment => ({
+    const splitted = splitLargeSegments(remedied, 15);
+    if (splitted.length > remedied.length) {
+      console.log(`[LingoSync] Quebra de segmentos grandes: ${remedied.length} → ${splitted.length} segmentos.`);
+    }
+    const final = splitted.map(segment => ({
       ...segment,
       translation: normalizeTranslationPunctuationBySource(segment.text, segment.translation || "")
     }));
@@ -772,10 +931,11 @@ CRITICAL RULES:
    - Example: "rule over it" → "governá-lo" (NOT "governar sobre ele")
    - Example: "we watch God create" → "vemos Deus criar" (NOT "nós vemos Deus criar")
    - Example: "on His behalf" → "em Seu nome" (NOT "em Seu lugar")
-4. **MIRROR PUNCTUATION EXACTLY**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
+4. **MIRROR PUNCTUATION EXACTLY (MANDATORY — FAILURE CASES BELOW)**: Mirror ALL punctuation marks from the English source in the ${langName} translation at the SAME position. If the English has a period, comma, question mark, exclamation, colon, or semicolon between words, the translation MUST have the same punctuation at the corresponding position between its words.
    - Example: "the world. He" → "o mundo. Ele" (NOT "o mundo Ele")
    - Example: "the story? It" → "a história? Ela" (NOT "a história Ela")
    - Example: "God said: let" → "Deus disse: deixe" (NOT "Deus disse deixe")
+   - **REAL FAILURE CASE — NEVER REPEAT**: "The day of the Lord. It is a phrase" → MUST be "O dia do Senhor. É uma frase" (NOT "O dia do Senhor É uma frase" — the period after "Senhor" is REQUIRED)
 5. DO NOT merge or split segments — keep the same number of segments.
 6. If a segment is a single word, translate it appropriately in context.
 7. **NO QUOTATION MARKS**: Never add quotation marks (") around text. If the original transcription has no quotes, the output must also have no quotes. Never open a quote without closing it.
