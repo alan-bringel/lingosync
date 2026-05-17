@@ -589,6 +589,13 @@ export async function generateLessonSegments(
    - "the story (a história, feminine) → read **it**" → "ler **ela**" (NOT "ele")
    - "God gave humans power to rule over **it**" ("it" = world/mundo/masculine) → "governar sobre **ele**"
 10. **CAPITALIZE DIVINE PRONOUNS**: When English pronouns ("he", "him", "his", "you", "your", "me", "my") refer to God, Jesus, or the Holy Spirit, they MUST be capitalized ("He", "Him", "His", "You", "Your", "Me", "My"). This is a standard English reverence convention. For example: "...God created the world, and then he gave humans power..." → "...God created the world, and then He gave humans power..."
+11. **TRANSLATION STRICT FIDELITY — NEVER ADD EXTRA CONTENT**: The translation MUST contain ONLY the words that correspond to the English source text. NEVER add words, phrases, explanations, or clarifications that are not present in the English. For example:
+    - English: "But the humans are tempted by this mysterious,"
+    - CORRECT: "Mas os humanos são tentados por este misterioso,"
+    - WRONG: "Mas os humanos são tentados por este misterioso personagem não humano," ❌ (added "personagem não humano")
+    - English: "He is a just judge"
+    - CORRECT: "Ele é um juiz justo"
+    - WRONG: "Ele é um juiz justo e íntegro" ❌ (added "e íntegro")
 
 ### ⚠️ NEVER DO THIS (WORD CROSSING VIOLATION):
 - Seg 1 English: "truth spoken in a simple" → Seg 1 ${langName}: "verdade dita de forma" ❌
