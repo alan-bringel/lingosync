@@ -368,7 +368,13 @@ export default function App() {
   }, []);
 
   const [playlist, setPlaylist] = useState<AudioTrack[]>(INITIAL_PLAYLIST);
-  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+  const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem('lingosync_current_track_index');
+      return saved ? parseInt(saved, 10) : 0;
+    }
+    return 0;
+  });
   const playlistRef = useRef(playlist);
   playlistRef.current = playlist;
 
@@ -788,6 +794,10 @@ export default function App() {
   }, [currentView]);
 
   useEffect(() => {
+    localStorage.setItem('lingosync_current_track_index', String(currentTrackIndex));
+  }, [currentTrackIndex]);
+
+  useEffect(() => {
     if (!isSyncing) {
       isManualSyncRef.current = false;
     }
@@ -1115,9 +1125,13 @@ export default function App() {
           setPlaylist(saved);
           syncManyToRef(saved);
           await refreshGlobalKnownWords(saved);
+          setCurrentTrackIndex(prev => Math.min(prev, saved.length - 1));
         } else {
           setGlobalKnownWords([]);
           await set("lingosync_global_known_words", []).catch(console.error);
+          if (currentView === 'lesson') {
+            setCurrentView('home');
+          }
         }
       } catch (err) {
         console.error("Failed to load initial data:", err);
