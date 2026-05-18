@@ -1125,9 +1125,9 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
       }
     }
 
-    // Minimal preroll (0.1s) to avoid clipping the first phoneme without bleeding into previous segment
+    // Minimal preroll (0.25s) to avoid clipping the first phoneme without bleeding into previous segment
     setStopTime(playEnd);
-    const exactStart = Math.max(0, playStart - 0.1);
+    const exactStart = Math.max(0, playStart - 0.25);
     stableTimeRef.current = exactStart;
 
     const speed = globalSpeed;
