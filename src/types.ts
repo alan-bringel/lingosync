@@ -44,6 +44,7 @@ export interface AudioTrack {
   syncStatus?: 'synced' | 'pending' | 'missing_local' | 'error' | 'cloud_only';
   lastAccessedAt?: number; // Timestamp for cache eviction (5 most recent kept locally)
   updatedAt?: number; // Timestamp of last metadata edit (title, lessonNumber, etc.) — used for multi-device conflict resolution
+  transcriptUpdatedAt?: number; // Timestamp of last transcript edit — used for multi-device transcript sync
 }
 
 declare global {

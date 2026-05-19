@@ -1110,20 +1110,8 @@ export function AudioPlayer({ track, trackNumber, onNext, onPrev, onExport, onUp
     repeatsLeftRef.current = repeats === Infinity ? Infinity : Math.max(0, repeats - 1);
     setActiveSegmentIndex(index);
 
-    // Use word-level timestamps for precise boundaries when available
-    const seg = track.transcript[index];
     let playStart = start;
     let playEnd = end;
-    if (seg && seg.words && seg.words.length > 0) {
-      const firstWord = seg.words[0];
-      const lastWord = seg.words[seg.words.length - 1];
-      if (firstWord && firstWord.start !== undefined && !isNaN(firstWord.start)) {
-        playStart = firstWord.start;
-      }
-      if (lastWord && lastWord.end !== undefined && !isNaN(lastWord.end)) {
-        playEnd = lastWord.end;
-      }
-    }
 
     // Minimal preroll (0.25s) to avoid clipping the first phoneme without bleeding into previous segment
     setStopTime(playEnd);

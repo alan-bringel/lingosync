@@ -550,10 +550,20 @@ export default function App() {
           }
 
           mergedTrack = { ...mergedTrack, knownWords: mergedKnown, flashcards: mergedFlashcards };
+
+          // Protect against overwriting a newer remote transcript during upload
+          // If the remote has a more recent transcript, keep it instead of using local
+          const remoteTranscriptTs = remoteTrack.transcriptUpdatedAt || 0;
+          const localTranscriptTs = mergedTrack.transcriptUpdatedAt || 0;
+          if (remoteTranscriptTs > localTranscriptTs && remoteTrack.transcript) {
+            mergedTrack.transcript = remoteTrack.transcript;
+            mergedTrack.transcriptUpdatedAt = remoteTrack.transcriptUpdatedAt;
+          }
+
           // Update ref with merged data before upload so subsequent operations use correct state
           syncLatestToRef(mergedTrack);
         } catch (err) {
-          console.debug("Could not fetch remote state for merge before upload:", err);
+          console.warn("Could not fetch remote state for merge before upload:", err);
         }
       }
       
@@ -1314,18 +1324,34 @@ export default function App() {
         }
       }
 
-      // Sync transcript alterations (segment splits/edits) between devices
-      const remoteTranscriptStr = JSON.stringify(remoteTrack.transcript);
-      const localTranscriptStr = JSON.stringify(track.transcript);
-      if (remoteTranscriptStr !== localTranscriptStr) {
-        changed = true;
+      // Smart transcript sync: use transcriptUpdatedAt to decide which direction to sync
+      // This ensures manual edits (time, text, split/merge) propagate across devices automatically.
+      const remoteTranscriptTs = remoteTrack.transcriptUpdatedAt || 0;
+      const localTranscriptTs = track.transcriptUpdatedAt || 0;
+
+      // Use !== instead of > to handle clock skew between devices.
+      // If timestamps differ, the remote transcript might have real changes.
+      // We always pull remote during periodic sync — if local was edited,
+      // the next upload from handleUpdateTrack will push local changes back.
+      if (remoteTranscriptTs !== localTranscriptTs && remoteTranscriptTs > 0) {
+        // Only sync if local hasn't been edited in the last 10 seconds
+        // (prevents race condition with concurrent local edits)
+        const wasRecentlyEdited = localTranscriptTs > 0 && (Date.now() - localTranscriptTs) < 10000;
+        if (!wasRecentlyEdited) {
+          changed = true;
+        }
       }
 
       if (!changed) return;
 
       const updatedTrack = { ...track, knownWords: mergedKnown, flashcards: mergedFlashcards, ...mergedMetadata };
-      if (remoteTrack.transcript) {
-        updatedTrack.transcript = remoteTrack.transcript;
+
+      if (remoteTranscriptTs !== localTranscriptTs && remoteTranscriptTs > 0 && remoteTrack.transcript) {
+        const wasRecentlyEdited = localTranscriptTs > 0 && (Date.now() - localTranscriptTs) < 10000;
+        if (!wasRecentlyEdited) {
+          updatedTrack.transcript = remoteTrack.transcript;
+          updatedTrack.transcriptUpdatedAt = remoteTrack.transcriptUpdatedAt;
+        }
       }
 
       syncLatestToRef(updatedTrack);
@@ -1337,8 +1363,12 @@ export default function App() {
       if (mergedMetadata.coverUrl) metadataForDb.coverUrl = mergedMetadata.coverUrl;
       if (mergedMetadata.language) metadataForDb.language = mergedMetadata.language;
       if (mergedMetadata.updatedAt) metadataForDb.updatedAt = mergedMetadata.updatedAt;
-      if (remoteTranscriptStr !== localTranscriptStr && remoteTrack.transcript) {
-        metadataForDb.transcript = remoteTrack.transcript;
+      if (remoteTranscriptTs !== localTranscriptTs && remoteTranscriptTs > 0 && remoteTrack.transcript) {
+        const wasRecentlyEdited = localTranscriptTs > 0 && (Date.now() - localTranscriptTs) < 10000;
+        if (!wasRecentlyEdited) {
+          metadataForDb.transcript = remoteTrack.transcript;
+          metadataForDb.transcriptUpdatedAt = remoteTrack.transcriptUpdatedAt;
+        }
       }
 
       await updateTrackMetadata(track.id, metadataForDb);
@@ -1348,7 +1378,7 @@ export default function App() {
         return updated;
       });
     } catch (err) {
-      console.debug("Periodic sync check error:", err);
+      console.warn("Periodic sync check error:", err);
     }
   };
 
@@ -1760,6 +1790,7 @@ export default function App() {
         url: URL.createObjectURL(file),
         coverUrl: `https://picsum.photos/seed/${file.name}/400/400`,
         transcript: transcript,
+        transcriptUpdatedAt: Date.now(),
         rawAssemblyWords: rawAssemblyWords,
         isVideo: isVideo,
         audioFileName: file.name,
@@ -1813,8 +1844,22 @@ export default function App() {
 
       // Re-align word timestamps when transcript is edited,
       // so word-by-word highlight stays synchronized after segment edits.
+      // Only re-align if the segment text actually changed (split/merge/text edit).
+      // If only start/end times changed (manual slider edit), preserve user's time input.
       if (updates.transcript && currentTrack?.rawAssemblyWords && currentTrack.rawAssemblyWords.length > 0) {
-        updates.transcript = reAlignSegmentTimestamps(updates.transcript, currentTrack.rawAssemblyWords);
+        const currentTranscript = currentTrack.transcript;
+        const transcriptTextChanged = !currentTranscript ||
+          updates.transcript.length !== currentTranscript.length ||
+          updates.transcript.some((s, i) => s.text !== currentTranscript[i]?.text);
+        if (transcriptTextChanged) {
+          updates.transcript = reAlignSegmentTimestamps(updates.transcript, currentTrack.rawAssemblyWords);
+        }
+      }
+
+      // Stamp transcriptUpdatedAt when transcript changes (manual time edits, text edits, split/merge)
+      // This timestamp drives multi-device transcript sync via periodicSyncCurrentTrack
+      if (updates.transcript) {
+        updates.transcriptUpdatedAt = Date.now();
       }
 
       // Only stamp updatedAt for actual metadata changes (title, lessonNumber, etc.)

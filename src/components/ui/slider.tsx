@@ -35,6 +35,7 @@ function Slider({
       value={value}
       min={min}
       max={max}
+      thumbAlignment="center"
       {...props}
       onValueChange={(val) => onValueChange?.(Array.isArray(val) ? val as number[] : [val] as number[])}
       onValueCommitted={(val) => onValueCommitted?.(Array.isArray(val) ? val as number[] : [val] as number[])}
